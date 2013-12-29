@@ -32,7 +32,8 @@ Assuming you `1.jpg` above is a 1080p image and you'd really like to just displa
 a 100x100 thumbnail next to `user_1`'s comments you can do so easily by simply including the following in your markup:
 
 ```
-<img src="http://hash.cloudfront.net/profile_pictures/1.jpg?w=100&h=100" alt="profile pic" title="user_1" />
+<img src="http://hash.cloudfront.net/profile_pictures/1.jpg?w=100&h=100"
+     alt="profile pic" title="user_1" />
 ```
 
 The request will hit cloudfront, which will turn around and hit your origin at
