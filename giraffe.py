@@ -16,13 +16,21 @@ os.environ['AWS_SECRET_ACCESS_KEY'] = '' # AWS_SECRET_ACCESS_KEY
 BUCKET = ''
 
 
-# 
+#
 app = Flask(__name__)
 app.debug = True
 
 
-s3 = boto.connect_s3()
-bucket = s3.get_bucket(BUCKET)
+s3 = None
+bucket = None
+
+
+def connect_s3():
+    global s3, bucket
+    if not s3:
+        s3 = boto.connect_s3()
+    if not bucket:
+        bucket = s3.get_bucket(BUCKET)
 
 
 @app.route("/")
@@ -32,12 +40,8 @@ def index():
 
 @app.route("/<path:path>")
 def image_route(path):
-    args = dict(
-        w=int(request.args.get("w")),
-        h=int(request.args.get("h")),
-    )
+    args = get_image_args(request.args)
     params = args.values()
-
     if params:
         print "we have params"
         key = bucket.get_key(path)
@@ -59,9 +63,7 @@ def image_route(path):
                 return custom_key.read(), 200, {"Content-Type": "image/jpeg"}
             else:
                 img = Image.open(StringIO.StringIO(key.read()))
-
-                # TODO: limit width, height to the max size of the image
-                size = args['w'], args['h']
+                size = min(args['w'], img.size[0]), min(args['h'], img.size[1])
                 new_img = img.resize(size, PIL.Image.NEAREST)
                 temp_handle = StringIO.StringIO()
                 new_img.save(temp_handle, format='JPEG')
@@ -77,14 +79,47 @@ def image_route(path):
         else:
             return "404: original file '{}' doesn't exist".format(path), 404
     else:
-        key = bucket.get_key(path)
-        if key:
-            return key.read(), 200, {"Content-Type": "image/jpeg"}
-        else:
-            return "404: file '{}' doesn't exist".format(path), 404
+        return get_file_or_404(path)
+
+
+def int_or_bust(value):
+    try:
+        return int(value)
+    except ValueError:
+        return None
+    except TypeError:
+        return None
+
+
+def positive(value):
+    if value >= 0:
+        return value
+    else:
+        return None
+
+
+def get_image_args(args):
+    w = positive(int_or_bust(args.get("w")))
+    h = positive(int_or_bust(args.get("h")))
+
+    args = {}
+    if w:
+        args['w'] = w
+    if h:
+        args['h'] = h
+
+    return args
+
+
+def get_file_or_404(path):
+    key = bucket.get_key(path)
+    if key:
+        return key.read(), 200, {"Content-Type": "image/jpeg"}
+    else:
+        return "404: file '{}' doesn't exist".format(path), 404
+
 
 
 if __name__ == "__main__":
+    connect_s3()
     app.run("0.0.0.0", 9876)
-
-
