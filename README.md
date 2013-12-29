@@ -22,7 +22,7 @@ s3://media.example.com/profile_pictures/1.jpg
 You set up `this thing` in ec2 behind an elb, point dns like `images.example.com` at it,
 and configure it to point to your bucket.
 
-Finally set up a new `cloudfront` distribution (e.g.: `hash.cloudfront.net`) to sit 
+Finally set up a new `cloudfront` distribution (e.g.: `hash.cloudfront.net`) to sit
 in front of `images.example.com` and be sure to set it to forward query strings
 to origin.
 
@@ -35,9 +35,9 @@ a 100x100 thumbnail next to `user_1`'s comments you can do so easily by simply i
 <img src="http://hash.cloudfront.net/profile_pictures/1.jpg?w=100&h=100" alt="profile pic" title="user_1" />
 ```
 
-The request will hit cloudfront, which will turn around and hit your origin at 
+The request will hit cloudfront, which will turn around and hit your origin at
 `images.example.com`, which will check for an image `/profile_pictures/1.jpg`, if that exists it'll then check for the requested size image at `/cache/profile_pictures/1_100_100.jpg` in `s3://media.example.com`.  If it finds it
-it will simply return it, otherwise it'll use the original to generate the 
+it will simply return it, otherwise it'll use the original to generate the
 `cache` prefixed resized version.
 
 ## TODO
@@ -49,3 +49,4 @@ it will simply return it, otherwise it'll use the original to generate the
  - `wand` / `imagemagick` instead of pil?
 
 
+![travis ci builid status](https://travis-ci.org/steder/giraffe.png)
