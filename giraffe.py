@@ -1,20 +1,27 @@
-import os
-import StringIO
-import tempfile
+from __future__ import absolute_import
+from __future__ import print_function
 
-import boto
-from boto.s3.key import Key
+import os
+from io import BytesIO
+
 import PIL
 from PIL import Image
 from flask import Flask
 from flask import request
+from requests.exceptions import HTTPError
+import tinys3
 
 
-# settings to tweak:
-os.environ['AWS_ACCESS_KEY_ID'] = '' # AWS_ACCESS_KEY_ID
-os.environ['AWS_SECRET_ACCESS_KEY'] = '' # AWS_SECRET_ACCESS_KEY
-BUCKET = ''
+"""
+You'll need to set these environment variables:
 
+ - AWS_ACCESS_KEY_ID
+ - AWS_SECRET_ACCESS_KEY
+ - GIRAFFE_BUCKET
+
+I'd recommend setting them in your ``app.sh`` file.
+
+"""
 
 #
 app = Flask(__name__)
@@ -27,10 +34,13 @@ bucket = None
 
 def connect_s3():
     global s3, bucket
-    if not s3:
-        s3 = boto.connect_s3()
     if not bucket:
-        bucket = s3.get_bucket(BUCKET)
+        bucket = os.environ.get("GIRAFFE_BUCKET")
+    if not s3:
+        s3 = tinys3.Connection(os.environ.get("AWS_ACCESS_KEY_ID"),
+                               os.environ.get("AWS_SECRET_ACCESS_KEY"),
+                               default_bucket=bucket)
+    return s3
 
 
 @app.route("/")
@@ -43,64 +53,27 @@ def image_route(path):
     args = get_image_args(request.args)
     params = args.values()
     if params:
-        print "we have params"
-        key = bucket.get_key(path)
-        if key:
-            print "and the original path exists"
-            dirname = os.path.dirname(path)
-            name = os.path.basename(path)
-            try:
-                base, ext = name.split(".")
-            except:
-                return "no extension specified", 404
-            stuff = [base,]
-            stuff.extend(args.values())
-            filename_with_args = "_".join(str(x) for x in stuff
-                                       if x is not None) + "." + ext
-            key_name = os.path.join('cache', dirname, filename_with_args)
-            custom_key = bucket.get_key(key_name)
-            if custom_key:
-                return custom_key.read(), 200, {"Content-Type": "image/jpeg"}
-            else:
-                img = Image.open(StringIO.StringIO(key.read()))
-                size = min(args['w'], img.size[0]), min(args['h'], img.size[1])
-                new_img = img.resize(size, PIL.Image.NEAREST)
-                temp_handle = StringIO.StringIO()
-                new_img.save(temp_handle, format='JPEG')
-
-                new_key = Key(bucket)
-                new_key.key = key_name
-
-                temp_handle.seek(0)
-                new_key.set_contents_from_string(temp_handle.read(), {"Content-Type": "image/jpeg"})
-
-                temp_handle.seek(0)
-                return temp_handle.read(), 200, {"Content-Type": "image/jpeg"}
-        else:
-            return "404: original file '{}' doesn't exist".format(path), 404
+        return get_file_with_params_or_404(path, args)
     else:
         return get_file_or_404(path)
 
 
-def int_or_bust(value):
+def positive_int_or_none(value):
     try:
-        return int(value)
+        value = int(value)
+        if value >= 0:
+            return value
+        else:
+            return None
     except ValueError:
         return None
     except TypeError:
         return None
 
 
-def positive(value):
-    if value >= 0:
-        return value
-    else:
-        return None
-
-
 def get_image_args(args):
-    w = positive(int_or_bust(args.get("w")))
-    h = positive(int_or_bust(args.get("h")))
+    w = positive_int_or_none(args.get("w"))
+    h = positive_int_or_none(args.get("h"))
 
     args = {}
     if w:
@@ -111,13 +84,58 @@ def get_image_args(args):
     return args
 
 
+def get_object_or_none(path):
+    try:
+        obj = s3.get(path)
+    except HTTPError as error:
+        if error.response.status_code == 404:
+            return None
+        else:
+            raise
+    return obj
+
+
 def get_file_or_404(path):
-    key = bucket.get_key(path)
+    key = get_object_or_none(path)
     if key:
-        return key.read(), 200, {"Content-Type": "image/jpeg"}
+        return key.content, 200, {"Content-Type": "image/jpeg"}
     else:
         return "404: file '{}' doesn't exist".format(path), 404
 
+
+def get_file_with_params_or_404(path, args):
+    print("we have params")
+    key = get_object_or_none(path)
+    if key:
+        print("and the original path exists")
+        dirname = os.path.dirname(path)
+        name = os.path.basename(path)
+        try:
+            base, ext = name.split(".")
+        except:
+            return "no extension specified", 404
+        stuff = [base,]
+        stuff.extend(args.values())
+        filename_with_args = "_".join(str(x) for x in stuff
+                                   if x is not None) + "." + ext
+        key_name = os.path.join('cache', dirname, filename_with_args)
+        custom_key = get_object_or_none(key_name)
+        if custom_key:
+            return custom_key.content, 200, {"Content-Type": "image/jpeg"}
+        else:
+            img = Image.open(BytesIO(key.content))
+            size = min(args.get('w', img.size[0]), img.size[0]), min(args.get('h', img.size[1]), img.size[1])
+            if size != img.size:
+                new_img = img.resize(size, PIL.Image.NEAREST)
+                temp_handle = BytesIO()
+                new_img.save(temp_handle, format='JPEG')
+                s3.upload(key_name, temp_handle, content_type="image/jpeg", rewind=True, public=True)
+                temp_handle.seek(0)
+                return temp_handle.read(), 200, {"Content-Type": "image/jpeg"}
+            else:
+                return key.content, 200, {"Content-Type": "image/jpeg"}
+    else: 
+        return "404: original file '{}' doesn't exist".format(path), 404
 
 
 if __name__ == "__main__":
