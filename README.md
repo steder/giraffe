@@ -11,7 +11,7 @@ The names will change.
 `this fledgling project` is an image processing proxy with the immediate
 goal of being placed between an S3 bucket and a cloudfront distribution.
 
-## Overview of architecture:
+### Overview of architecture:
 
 You store original images in an s3 bucket.  Something like:
 
@@ -41,13 +41,21 @@ The request will hit cloudfront, which will turn around and hit your origin at
 it will simply return it, otherwise it'll use the original to generate the
 `cache` prefixed resized version.
 
+## Setup
+
+### Dependencies
+
+At a system level you'll need:
+ - `Python` (2.7, 3.3+, or pypy)
+ - `ImageMagick`
+
+For deployment with Gunicorn you may also want `libev`
+
 ## TODO
 
  - handle nonsensical requests for images (resizing larger than the bounds of the original, etc)
  - handle crops and fits
  - optimize performance by caching image existence checks (finally a use for bloom filters?)
- - `pypy`?
- - `wand` / `imagemagick` instead of pil?
-
+ - cache-control headers
 
 ![travis ci builid status](https://travis-ci.org/steder/giraffe.png)
