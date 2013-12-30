@@ -1,7 +1,7 @@
 Flask==0.10.1
 Jinja2==2.7.1
 MarkupSafe==0.18
-Pillow==2.2.2
+Wand==0.3.5
 Werkzeug==0.9.4
 flexmock==0.9.7
 futures==2.1.5
