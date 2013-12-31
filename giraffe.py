@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from __future__ import division
 from __future__ import print_function
 
 from collections import namedtuple
@@ -54,10 +55,17 @@ def index():
 
 @app.route("/<path:path>")
 def image_route(path):
+    dirname = os.path.dirname(path)
+    name = os.path.basename(path)
+    try:
+        base, ext = name.split(".")
+    except:
+        return "no extension specified", 404
+
     args = get_image_args(request.args)
     params = args.values()
     if params:
-        return get_file_with_params_or_404(path, args)
+        return get_file_with_params_or_404(path, dirname, base, ext, args)
     else:
         return get_file_or_404(path)
 
@@ -78,14 +86,23 @@ def positive_int_or_none(value):
 def get_image_args(args):
     w = positive_int_or_none(args.get("w"))
     h = positive_int_or_none(args.get("h"))
+    fit = args.get('fit')
+    flip = args.get('flip')
+    rot = positive_int_or_none(args.get("rot"))
 
-    args = {}
+    image_args = {}
     if w:
-        args['w'] = w
+        image_args['w'] = w
     if h:
-        args['h'] = h
+        image_args['h'] = h
+    if fit:
+        image_args['fit'] = fit
+    if flip:
+        image_args['flip'] = flip
+    if rot:
+        image_args['rot'] = rot
 
-    return args
+    return image_args
 
 
 def get_object_or_none(path):
@@ -109,21 +126,71 @@ def get_file_or_404(path):
 
 def process_image(img, operations):
     for op in operations:
-#        if callable(op.function):
-#            img = op.function(img, params)
+        if callable(op.function):
+            img = op.function(img, **op.params)
         if op.function == 'resize':
             img.resize(**op.params)
+        if op.function == 'liquid':
+            # this will raise a MissingDelegateError if you don't compile
+            # imagemagick with the `--with-lqr` option.
+            img.liquid_rescale(**op.params)
+        if op.function == 'flip':
+            img.flip()
+        if op.function == 'flop':
+            img.flop()
+    return img
+
+
+def fit_crop(img, width=None, height=None, anchor=None):
+    # regarding offset: based on anchor being 'top', 'bottom', 'left', 'right'
+    # we should adjust offset.  By default this empty offset
+    # means we will always crop to the center.
+    offset = '' 
+    crop = "{}x{}{}".format(width, height, offset)
+    resize = ''
+    img.transform(crop, resize)
     return img
 
 
 def build_pipeline(params):
     pipeline = []
     if 'h' in params and 'w' in params:
-        pipeline.append(
-            ImageOp('resize', {'width': params['w'],
-                               'height': params['h']}
-                    )
-        )
+        fit = params.get('fit')
+
+        if fit == 'crop':
+            anchor = params.get('crop', 'center').lower()
+            pipeline.append(
+                ImageOp(fit_crop, {
+                        'width': params['w'],
+                        'height': params['h'],
+                        'anchor': anchor,
+                        }
+                )
+            )
+        elif fit == 'liquid':
+            pipeline.append(
+                ImageOp('liquid', {'width': params['w'],
+                                   'height': params['h']}
+                        )
+            )
+        else:
+            pipeline.append(
+                ImageOp('resize', {'width': params['w'],
+                                   'height': params['h']}
+                        )
+            )
+
+    flip = params.get('flip')
+    if flip:
+        if 'h' in flip:
+            pipeline.append(
+                ImageOp('flop', {})
+            )
+        if 'v' in flip:
+            pipeline.append(
+                ImageOp('flip', {})
+            )
+
     return pipeline
 
 
@@ -143,17 +210,11 @@ def image_to_binary(img, format='JPEG'):
     return img.make_blob(format)
 
 
-def get_file_with_params_or_404(path, args):
+def get_file_with_params_or_404(path, dirname, base, ext, args):
     print("we have params")
     key = get_object_or_none(path)
     if key:
         print("and the original path exists")
-        dirname = os.path.dirname(path)
-        name = os.path.basename(path)
-        try:
-            base, ext = name.split(".")
-        except:
-            return "no extension specified", 404
         stuff = [base,]
         stuff.extend(args.values())
         filename_with_args = "_".join(str(x) for x in stuff
