@@ -41,21 +41,53 @@ The request will hit cloudfront, which will turn around and hit your origin at
 it will simply return it, otherwise it'll use the original to generate the
 `cache` prefixed resized version.
 
+## Supported URL Parameters
+
+### Resizing
+
+ - w, h
+ - fit: controls how the output image is fitted to its target dimensions.  Valid values for `fit` include:
+  - crop (resize to fill width and height and crop any excess)
+  - liquid (resize with liquid rescaling / content-aware resizing / seam carving)
+ - crop: controls how the input is aligned when `fit=crop`.  Valid values for `crop` include:
+  - <unset>: crop to the center
+  - top (TBD)
+  - bottom (TBD)
+  - left (TBD)
+  - right (TBD)
+ - flip (flip horizontally `flip=h`, vertically `flip=v` or both `flip=hv`)
+
 ## Setup
 
 ### Dependencies
 
 At a system level you'll need:
  - `Python` (2.7, 3.3+, or pypy)
- - `ImageMagick`
+ - `ImageMagick` (remember to use `--with-liblqr` if you want to be able to use content-aware resizing)
 
-For deployment with Gunicorn you may also want `libev`
+For deployment with Gunicorn you may also want `libev`.
+
+### Development
+
+```
+mkvirtualenv giraffe
+pip install -r requirements.txt
+```
+
+#### Testing
+
+```
+nosetests
+OR
+tox
+```
+
+### Deployment
 
 ## TODO
 
- - handle nonsensical requests for images (resizing larger than the bounds of the original, etc)
- - handle crops and fits
  - optimize performance by caching image existence checks (finally a use for bloom filters?)
  - cache-control headers
+ - png support
 
 ![travis ci builid status](https://travis-ci.org/steder/giraffe.png)
