@@ -7,6 +7,7 @@ from io import BytesIO
 import gzip
 import os
 
+from dogpile.cache import make_region
 from flask import Flask
 from flask import request
 from requests.exceptions import HTTPError
@@ -32,6 +33,12 @@ app.debug = True
 
 s3 = None
 bucket = None
+
+
+region = make_region().configure(
+    'dogpile.cache.memory',
+    expiration_time=300,
+)
 
 
 def connect_s3():
@@ -65,8 +72,16 @@ def image_route(path):
     args = get_image_args(request.args)
     params = args.values()
     if params:
-        return get_file_with_params_or_404(path, dirname, base, ext, args)
+        stuff = [base,]
+        stuff.extend(args.values())
+        filename_with_args = "_".join(str(x) for x in stuff
+                                   if x is not None) + "." + ext
+        # if we enable compression we may want to modify the filename here to include *.gz
+        param_name = os.path.join('cache', dirname, filename_with_args)
+        print("calling get_file_with_params: {} {}".format(path, param_name))
+        return get_file_with_params_or_404(path, param_name, args)
     else:
+        print("calling get_file_or_404: {}".format(path))
         return get_file_or_404(path)
 
 
@@ -116,6 +131,7 @@ def get_object_or_none(path):
     return obj
 
 
+@region.cache_on_arguments()
 def get_file_or_404(path):
     key = get_object_or_none(path)
     if key:
@@ -210,18 +226,13 @@ def image_to_binary(img, format='JPEG'):
     return img.make_blob(format)
 
 
-def get_file_with_params_or_404(path, dirname, base, ext, args):
+@region.cache_on_arguments()
+def get_file_with_params_or_404(path, param_name, args):
     print("we have params")
     key = get_object_or_none(path)
     if key:
         print("and the original path exists")
-        stuff = [base,]
-        stuff.extend(args.values())
-        filename_with_args = "_".join(str(x) for x in stuff
-                                   if x is not None) + "." + ext
-        # if we enable compression we may want to modify the filename here to include *.gz
-        key_name = os.path.join('cache', dirname, filename_with_args)
-        custom_key = get_object_or_none(key_name)
+        custom_key = get_object_or_none(param_name)
         if custom_key:
             return custom_key.content, 200, {"Content-Type": "image/jpeg"}
         else:
@@ -229,7 +240,7 @@ def get_file_with_params_or_404(path, dirname, base, ext, args):
             size = min(args.get('w', img.size[0]), img.size[0]), min(args.get('h', img.size[1]), img.size[1])
             if size != img.size:
                 temp_handle = image_to_buffer(process_image(img, build_pipeline(args)), format='JPEG', compress=False)
-                s3.upload(key_name, temp_handle, content_type="image/jpeg", rewind=True, public=True)
+                s3.upload(param_name, temp_handle, content_type="image/jpeg", rewind=True, public=True)
                 temp_handle.seek(0)
                 return temp_handle.read(), 200, {"Content-Type": "image/jpeg"}
             else:

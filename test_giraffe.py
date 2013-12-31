@@ -241,6 +241,10 @@ class TestImageRoute(FlaskTestCase):
         super(TestImageRoute, self).setUp()
         with Color('red') as bg:
             self.image = Image(width=1920, height=1080, background=bg)
+        # let's clear the cache
+        giraffe.get_file_or_404.invalidate("redbull.jpg")
+        giraffe.get_file_with_params_or_404.invalidate("redbull.jpg", "cache/redbull_100_100.jpg",
+                                                       {'h': 100, 'w': 100})
 
     @mock.patch('giraffe.s3')
     def test_image_doesnt_exist(self, s3):
