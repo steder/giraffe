@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 from collections import namedtuple
+from collections import OrderedDict
 from io import BytesIO
 import gzip
 import os
@@ -105,7 +106,7 @@ def get_image_args(args):
     flip = args.get('flip')
     rot = positive_int_or_none(args.get("rot"))
 
-    image_args = {}
+    image_args = OrderedDict()
     if w:
         image_args['w'] = w
     if h:
