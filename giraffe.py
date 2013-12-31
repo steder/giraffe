@@ -34,6 +34,7 @@ app.debug = True
 
 s3 = None
 bucket = None
+CACHE_DIR = 'giraffe'
 
 
 region = make_region().configure(
@@ -78,7 +79,7 @@ def image_route(path):
         filename_with_args = "_".join(str(x) for x in stuff
                                    if x is not None) + "." + ext
         # if we enable compression we may want to modify the filename here to include *.gz
-        param_name = os.path.join('cache', dirname, filename_with_args)
+        param_name = os.path.join(CACHE_DIR, dirname, filename_with_args)
         print("calling get_file_with_params: {} {}".format(path, param_name))
         return get_file_with_params_or_404(path, param_name, args)
     else:
