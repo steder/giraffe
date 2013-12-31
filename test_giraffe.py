@@ -255,9 +255,7 @@ class TestImageRoute(FlaskTestCase):
     @mock.patch('giraffe.s3')
     def test_image_resize_original_doesnt_exist(self, s3):
         s3.get.side_effect = make_httperror(404)
-        print "calling"
         r = self.app.get("/redbull.jpg?w=100&h=100")
-        print "cleared?"
         self.assertEqual(r.status_code, 404)
 
     def test_image_has_no_extension(self):
