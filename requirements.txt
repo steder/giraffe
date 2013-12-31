@@ -3,6 +3,8 @@ Jinja2==2.7.1
 MarkupSafe==0.18
 Wand==0.3.5
 Werkzeug==0.9.4
+dogpile.core==0.4.1
+dogpile.cache==0.5.2
 flexmock==0.9.7
 futures==2.1.5
 itsdangerous==0.23
