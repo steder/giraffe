@@ -11,6 +11,10 @@ The names will change.
 `giraffe` is an image processing proxy with the immediate
 goal of being placed between an S3 bucket and a cloudfront distribution.
 
+`giraffe` allows you to store your high-quality original images on S3 and
+do any resizing, cropping, filters, etc on demand by simply adding query
+parameters to the URL for the original image.
+
 ### Overview of architecture:
 
 You store original images in an s3 bucket.  Something like:

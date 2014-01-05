@@ -35,6 +35,7 @@ app.debug = True
 s3 = None
 bucket = None
 CACHE_DIR = 'giraffe'
+CACHE_CONTROL = "max-age=2592000"
 
 
 region = make_region().configure(
@@ -137,7 +138,7 @@ def get_object_or_none(path):
 def get_file_or_404(path):
     key = get_object_or_none(path)
     if key:
-        return key.content, 200, {"Content-Type": "image/jpeg"}
+        return key.content, 200, {"Content-Type": "image/jpeg", "Cache-Control": CACHE_CONTROL}
     else:
         return "404: file '{}' doesn't exist".format(path), 404
 
@@ -236,7 +237,7 @@ def get_file_with_params_or_404(path, param_name, args):
         print("and the original path exists")
         custom_key = get_object_or_none(param_name)
         if custom_key:
-            return custom_key.content, 200, {"Content-Type": "image/jpeg"}
+            return custom_key.content, 200, {"Content-Type": "image/jpeg", "Cache-Control": CACHE_CONTROL}
         else:
             img = Image(blob=BytesIO(key.content))
             size = min(args.get('w', img.size[0]), img.size[0]), min(args.get('h', img.size[1]), img.size[1])
@@ -244,9 +245,9 @@ def get_file_with_params_or_404(path, param_name, args):
                 temp_handle = image_to_buffer(process_image(img, build_pipeline(args)), format='JPEG', compress=False)
                 s3.upload(param_name, temp_handle, content_type="image/jpeg", rewind=True, public=True)
                 temp_handle.seek(0)
-                return temp_handle.read(), 200, {"Content-Type": "image/jpeg"}
+                return temp_handle.read(), 200, {"Content-Type": "image/jpeg", "Cache-Control": CACHE_CONTROL}
             else:
-                return key.content, 200, {"Content-Type": "image/jpeg"}
+                return key.content, 200, {"Content-Type": "image/jpeg", "Cache-Control": CACHE_CONTROL}
     else: 
         return "404: original file '{}' doesn't exist".format(path), 404
 
