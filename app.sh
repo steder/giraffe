@@ -18,4 +18,10 @@ echo "ROOT=$ROOT"
 export ENV=production
 export NEW_RELIC_CONFIG_FILE="$ROOT/etc/newrelic.ini"
 
+#UPDATE THESE
+export AWS_ACCESS_KEY_ID=WHATEVER
+export AWS_SECRET_ACCESS_KEY=WHATEVER
+export GIRAFFE_BUCKET="giraffe.threadless.com"
+
+
 $VIRTUALENV/bin/newrelic-admin run-program $VIRTUALENV/bin/gunicorn -k gevent -c etc/gunicorn.conf.py giraffe:app --log-level=DEBUG
