@@ -29,7 +29,13 @@ I'd recommend setting them in your ``app.sh`` file.
 
 #
 app = Flask(__name__)
-app.debug = True
+ENV = os.environ.get("ENV", "development").lower()
+if ENV == "production":
+    app.debug = False
+elif ENV == "staging":
+    app.debug = False
+else:
+    app.debug = True
 
 
 s3 = None
