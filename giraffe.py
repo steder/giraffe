@@ -84,10 +84,8 @@ def image_route(path):
                                    if x is not None) + "." + ext
         # if we enable compression we may want to modify the filename here to include *.gz
         param_name = os.path.join(CACHE_DIR, dirname, filename_with_args)
-        print("calling get_file_with_params: {} {}".format(path, param_name))
         return get_file_with_params_or_404(bucket, path, param_name, args)
     else:
-        print("calling get_file_or_404: {}".format(path))
         return get_file_or_404(bucket, path)
 
 
