@@ -432,4 +432,15 @@ class TestImageRoute(FlaskTestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(Image(blob=r.data).size, (100, 100))
 
-
+    # original image as bmp:
+    @mock.patch('giraffe.s3')
+    def test_bmp_exists(self, s3):
+        obj = mock.Mock()
+        obj.content = self.image.make_blob("bmp")
+        obj.headers = {'content-type': 'image/bmp'}
+        s3.get.return_value = obj
+        r = self.app.get("/{}/redbull.bmp".format(self.bucket))
+        self.assertEqual(r.status_code, 200)
+        content_type = r.headers.get("content-type")
+        self.assertEqual(content_type, "image/bmp")
+        self.assertEqual(Image(blob=r.data).format, 'BMP')
