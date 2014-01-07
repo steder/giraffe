@@ -113,6 +113,7 @@ def get_image_args(args):
     fit = args.get('fit')
     flip = args.get('flip')
     rot = positive_int_or_none(args.get("rot"))
+    fm = args.get('fm')
 
     image_args = OrderedDict()
     if w:
@@ -125,7 +126,8 @@ def get_image_args(args):
         image_args['flip'] = flip
     if rot:
         image_args['rot'] = rot
-
+    if fm:
+        image_args['fm'] = fm
     return image_args
 
 
@@ -144,13 +146,15 @@ def get_object_or_none(bucket, path):
 def get_file_or_404(bucket, path):
     key = get_object_or_none(bucket, path)
     if key:
-        return key.content, 200, {"Content-Type": "image/jpeg", "Cache-Control": CACHE_CONTROL}
+        content_type = key.headers.get('content-type', 'image/jpeg')
+        return key.content, 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
     else:
         return "404: file '{}' doesn't exist".format(path), 404
 
 
 def process_image(img, operations):
     for op in operations:
+        print("op:", op)
         if callable(op.function):
             img = op.function(img, **op.params)
         if op.function == 'resize':
@@ -163,6 +167,8 @@ def process_image(img, operations):
             img.flip()
         if op.function == 'flop':
             img.flop()
+        if op.function == 'format':
+            img.format = op.params['format']
     return img
 
 
@@ -216,6 +222,12 @@ def build_pipeline(params):
                 ImageOp('flip', {})
             )
 
+    fm = params.get('fm')
+    if fm == 'png':
+        pipeline.append(ImageOp('format', {'format': 'png'}))
+    if fm == 'jpg' or fm == 'jpeg':
+        pipeline.append(ImageOp('format', {'format': 'jpeg'}))
+
     return pipeline
 
 
@@ -239,19 +251,30 @@ def image_to_binary(img, format='JPEG'):
 def get_file_with_params_or_404(bucket, path, param_name, args):
     key = get_object_or_none(bucket, path)
     if key:
+        #print("bucket: {}, path {}, param_name {}, args {}".format(bucket, path, param_name, args))
         custom_key = get_object_or_none(bucket, param_name)
         if custom_key:
-            return custom_key.content, 200, {"Content-Type": "image/jpeg", "Cache-Control": CACHE_CONTROL}
+            #print("processed image already exists")
+            content_type = custom_key.headers.get('content-type', "image/jpeg")
+            return custom_key.content, 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
         else:
+            #print("processing image")
             img = Image(blob=BytesIO(key.content))
+            format = img.format.lower()
+            content_type = "image/{}".format(format)
             size = min(args.get('w', img.size[0]), img.size[0]), min(args.get('h', img.size[1]), img.size[1])
-            if size != img.size:
-                temp_handle = image_to_buffer(process_image(img, build_pipeline(args)), format='JPEG', compress=False)
-                s3.upload(param_name, temp_handle, bucket=bucket, content_type="image/jpeg", rewind=True, public=True)
+            desired_format = args.get('fm', format)
+            print("sizes: {} or {}, formats: {} or {}".format(size, img.size, desired_format, format))
+            if size != img.size or desired_format != format:
+                image = process_image(img, build_pipeline(args))
+                format = image.format.lower()
+                content_type = "image/{}".format(format)
+                temp_handle = image_to_buffer(image, format=format, compress=False)
+                s3.upload(param_name, temp_handle, bucket=bucket, content_type=content_type, rewind=True, public=True)
                 temp_handle.seek(0)
-                return temp_handle.read(), 200, {"Content-Type": "image/jpeg", "Cache-Control": CACHE_CONTROL}
+                return temp_handle.read(), 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
             else:
-                return key.content, 200, {"Content-Type": "image/jpeg", "Cache-Control": CACHE_CONTROL}
+                return key.content, 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
     else: 
         return "404: original file '{}' doesn't exist".format(path), 404
 

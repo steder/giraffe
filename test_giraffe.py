@@ -61,6 +61,18 @@ class TestBuildPipelineFromParams(unittest.TestCase):
         self.assertEqual(pipeline[0].function, "liquid")
         self.assertEqual(pipeline[0].params, {'height': 50, 'width': 100})
 
+    def test_format_png(self):
+        pipeline = giraffe.build_pipeline(
+            {"w": 100, "h": 50,
+             "fm": "png",
+             }
+        )
+        self.assertEqual(len(pipeline), 2)
+        self.assertEqual(pipeline[0].function, "resize")
+        self.assertEqual(pipeline[0].params, {'height': 50, 'width': 100})
+        self.assertEqual(pipeline[1].function, "format")
+        self.assertEqual(pipeline[1].params, {'format': 'png'})
+
 
 class TestGetImageArgs(unittest.TestCase):
     def test_no_params(self):
@@ -143,6 +155,14 @@ class TestGetImageArgs(unittest.TestCase):
     def test_rotate(self):
         self.assertEqual(giraffe.get_image_args({"rot": 123}),
                          {"rot": 123})
+
+    def test_fm_jpg(self):
+        self.assertEqual(giraffe.get_image_args({"fm": "jpg"}),
+                         {"fm": "jpg"})
+
+    def test_fm_png(self):
+        self.assertEqual(giraffe.get_image_args({"fm": "png"}),
+                         {"fm": "png"})
 
 
 class TestGetObjectOrNone(unittest.TestCase):
@@ -246,6 +266,7 @@ class TestImageRoute(FlaskTestCase):
         super(TestImageRoute, self).setUp()
         with Color('red') as bg:
             self.image = Image(width=1920, height=1080, background=bg)
+
         # let's clear the cache
         params = OrderedDict()
         params['w'] = 100
@@ -274,13 +295,32 @@ class TestImageRoute(FlaskTestCase):
         r = self.app.get("/{}".format(self.bucket))
         self.assertEqual(r.status_code, 404)
 
+    # original image as jpeg:
     @mock.patch('giraffe.s3')
-    def test_image_exists(self, s3):
+    def test_jpeg_exists(self, s3):
         obj = mock.Mock()
         obj.content = self.image.make_blob("jpeg")
+        obj.headers = {'content-type': 'image/jpeg'}
         s3.get.return_value = obj
+
         r = self.app.get("/{}/redbull.jpg".format(self.bucket))
         self.assertEqual(r.status_code, 200)
+        content_type = r.headers.get("content-type")
+        self.assertEqual(content_type, "image/jpeg")
+        self.assertEqual(Image(blob=r.data).format, 'JPEG')
+
+    @mock.patch('giraffe.s3')
+    def test_jpeg_exists_but_format_as_png(self, s3):
+        obj = mock.Mock()
+        obj.content = self.image.make_blob("jpeg")
+        obj.headers = {'content-type': 'image/jpeg'}
+
+        s3.get.side_effect = [obj, make_httperror(404)]
+        r = self.app.get("/{}/redbull.jpg?fm=png".format(self.bucket))
+        self.assertEqual(r.status_code, 200)
+        content_type = r.headers.get("content-type")
+        self.assertEqual(content_type, "image/png")
+        self.assertEqual(Image(blob=r.data).format, 'PNG')
 
     @mock.patch('giraffe.s3')
     def test_image_exists_but_needs_to_be_resized(self, s3):
@@ -312,6 +352,79 @@ class TestImageRoute(FlaskTestCase):
         with self.image.clone() as img:
             img.resize(100, 100)
             obj2.content = img.make_blob("jpeg")
+        # we'll call s3.get twice, the first time we'll get the original file, the second time
+        # we'll be calling to check for the specific version of the object.
+        s3.get.side_effect = [obj, obj2]
+        r = self.app.get("/{}/redbull.jpg?w=100&h=100".format(self.bucket))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(Image(blob=r.data).size, (100, 100))
+
+    # original image as png:
+    @mock.patch('giraffe.s3')
+    def test_png_exists(self, s3):
+        obj = mock.Mock()
+        obj.content = self.image.make_blob("png")
+        obj.headers = {'content-type': 'image/png'}
+        s3.get.return_value = obj
+        r = self.app.get("/{}/redbull.png".format(self.bucket))
+        self.assertEqual(r.status_code, 200)
+        content_type = r.headers.get("content-type")
+        self.assertEqual(content_type, "image/png")
+        self.assertEqual(Image(blob=r.data).format, 'PNG')
+
+    @mock.patch('giraffe.s3')
+    def test_png_exists_but_needs_format_as_jpg(self, s3):
+        obj = mock.Mock()
+        obj.content = self.image.make_blob("png")
+        s3.get.side_effect = [obj, make_httperror(404)]
+        r = self.app.get("/{}/redbull.png?fm=jpg".format(self.bucket))
+        self.assertEqual(r.status_code, 200)
+        content_type = r.headers.get("content-type")
+        self.assertEqual(content_type, "image/jpeg")
+        self.assertEqual(Image(blob=r.data).format, 'JPEG')
+
+    @mock.patch('giraffe.s3')
+    def test_png_exists_but_needs_format_as_jpeg(self, s3):
+        # yep, if someone uses "fm=jpeg" instead of "fm=jpg" it should still work
+        obj = mock.Mock()
+        obj.content = self.image.make_blob("png")
+        s3.get.side_effect = [obj, make_httperror(404)]
+        r = self.app.get("/{}/redbull.png?fm=jpeg".format(self.bucket))
+        self.assertEqual(r.status_code, 200)
+        content_type = r.headers.get("content-type")
+        self.assertEqual(content_type, "image/jpeg")
+        self.assertEqual(Image(blob=r.data).format, 'JPEG')
+
+    @mock.patch('giraffe.s3')
+    def test_png_exists_but_needs_to_be_resized(self, s3):
+        obj = mock.Mock()
+        obj.content = self.image.make_blob("png")
+        # we'll call s3.get twice, the first time we'll get the original file, the second time
+        # we'll be calling to check for the specific version of the object.
+        s3.get.side_effect = [obj, make_httperror(404)]
+        r = self.app.get("/{}/redbull.png?w=100&h=100".format(self.bucket))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(Image(blob=r.data).size, (100, 100))
+
+    @mock.patch('giraffe.s3')
+    def test_png_exists_but_user_wants_unnecessary_resize(self, s3):
+        obj = mock.Mock()
+        obj.content = self.image.make_blob("png")
+        # we'll call s3.get twice, the first time we'll get the original file, the second time
+        # we'll be calling to check for the specific version of the object.
+        s3.get.side_effect = [obj, make_httperror(404)]
+        r = self.app.get("/{}/redbull.png?w=1920&h=1080".format(self.bucket))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(Image(blob=r.data).size, (1920, 1080))
+
+    @mock.patch('giraffe.s3')
+    def test_png_exists_and_has_already_been_resized(self, s3):
+        obj = mock.Mock()
+        obj.content = self.image.make_blob("png")
+        obj2 = mock.Mock() 
+        with self.image.clone() as img:
+            img.resize(100, 100)
+            obj2.content = img.make_blob("png")
         # we'll call s3.get twice, the first time we'll get the original file, the second time
         # we'll be calling to check for the specific version of the object.
         s3.get.side_effect = [obj, obj2]
