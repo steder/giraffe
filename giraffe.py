@@ -21,7 +21,6 @@ You'll need to set these environment variables:
 
  - AWS_ACCESS_KEY_ID
  - AWS_SECRET_ACCESS_KEY
- - GIRAFFE_BUCKET
 
 I'd recommend setting them in your ``app.sh`` file.
 
