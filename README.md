@@ -34,7 +34,7 @@ to origin.
 Assuming your image `1.jpg` above is a 1080p image and you'd really like to just display a 100x100 thumbnail next to `user_1`'s comments you can do so easily by simply including the following in your markup:
 
 ```
-<img src="http://hash.cloudfront.net/profile_pictures/1.jpg?w=100&h=100"
+<img src="http://hash.cloudfront.net/media.example.com/profile_pictures/1.jpg?w=100&h=100"
      alt="profile pic" title="user_1" />
 ```
 

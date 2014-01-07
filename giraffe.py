@@ -21,7 +21,6 @@ You'll need to set these environment variables:
 
  - AWS_ACCESS_KEY_ID
  - AWS_SECRET_ACCESS_KEY
- - GIRAFFE_BUCKET
 
 I'd recommend setting them in your ``app.sh`` file.
 
@@ -39,7 +38,6 @@ else:
 
 
 s3 = None
-bucket = None
 CACHE_DIR = 'giraffe'
 CACHE_CONTROL = "max-age=2592000"
 
@@ -51,13 +49,11 @@ region = make_region().configure(
 
 
 def connect_s3():
-    global s3, bucket
-    if not bucket:
-        bucket = os.environ.get("GIRAFFE_BUCKET")
+    global s3
     if not s3:
         s3 = tinys3.Connection(os.environ.get("AWS_ACCESS_KEY_ID"),
                                os.environ.get("AWS_SECRET_ACCESS_KEY"),
-                               default_bucket=bucket)
+                               )
     return s3
 
 
@@ -71,6 +67,12 @@ def index():
 
 @app.route("/<path:path>")
 def image_route(path):
+    segments = path.split("/")
+    bucket, path = segments[0], "/".join(segments[1:])
+
+    if not path:
+        return "no path specified", 404
+
     dirname = os.path.dirname(path)
     name = os.path.basename(path)
     try:
@@ -87,11 +89,9 @@ def image_route(path):
                                    if x is not None) + "." + ext
         # if we enable compression we may want to modify the filename here to include *.gz
         param_name = os.path.join(CACHE_DIR, dirname, filename_with_args)
-        print("calling get_file_with_params: {} {}".format(path, param_name))
-        return get_file_with_params_or_404(path, param_name, args)
+        return get_file_with_params_or_404(bucket, path, param_name, args)
     else:
-        print("calling get_file_or_404: {}".format(path))
-        return get_file_or_404(path)
+        return get_file_or_404(bucket, path)
 
 
 def positive_int_or_none(value):
@@ -129,9 +129,9 @@ def get_image_args(args):
     return image_args
 
 
-def get_object_or_none(path):
+def get_object_or_none(bucket, path):
     try:
-        obj = s3.get(path)
+        obj = s3.get(path, bucket=bucket)
     except HTTPError as error:
         if error.response.status_code == 404:
             return None
@@ -141,8 +141,8 @@ def get_object_or_none(path):
 
 
 @region.cache_on_arguments()
-def get_file_or_404(path):
-    key = get_object_or_none(path)
+def get_file_or_404(bucket, path):
+    key = get_object_or_none(bucket, path)
     if key:
         return key.content, 200, {"Content-Type": "image/jpeg", "Cache-Control": CACHE_CONTROL}
     else:
@@ -236,12 +236,10 @@ def image_to_binary(img, format='JPEG'):
 
 
 @region.cache_on_arguments()
-def get_file_with_params_or_404(path, param_name, args):
-    print("we have params")
-    key = get_object_or_none(path)
+def get_file_with_params_or_404(bucket, path, param_name, args):
+    key = get_object_or_none(bucket, path)
     if key:
-        print("and the original path exists")
-        custom_key = get_object_or_none(param_name)
+        custom_key = get_object_or_none(bucket, param_name)
         if custom_key:
             return custom_key.content, 200, {"Content-Type": "image/jpeg", "Cache-Control": CACHE_CONTROL}
         else:
@@ -249,7 +247,7 @@ def get_file_with_params_or_404(path, param_name, args):
             size = min(args.get('w', img.size[0]), img.size[0]), min(args.get('h', img.size[1]), img.size[1])
             if size != img.size:
                 temp_handle = image_to_buffer(process_image(img, build_pipeline(args)), format='JPEG', compress=False)
-                s3.upload(param_name, temp_handle, content_type="image/jpeg", rewind=True, public=True)
+                s3.upload(param_name, temp_handle, bucket=bucket, content_type="image/jpeg", rewind=True, public=True)
                 temp_handle.seek(0)
                 return temp_handle.read(), 200, {"Content-Type": "image/jpeg", "Cache-Control": CACHE_CONTROL}
             else:

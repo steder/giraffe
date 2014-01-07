@@ -151,16 +151,18 @@ class TestGetObjectOrNone(unittest.TestCase):
     or simply return None.
 
     """
+    bucket = "test.giraffe.bucket"
+
 
     @mock.patch('giraffe.s3')
     def test_missing_object(self, s3):
         s3.get.side_effect = make_httperror(404)
-        self.assertIsNone(giraffe.get_object_or_none("redbull.jpg"))
+        self.assertIsNone(giraffe.get_object_or_none(self.bucket, "redbull.jpg"))
 
     @mock.patch('giraffe.s3')
     def test_existing_object(self, s3):
         s3.get.return_value = 'foo'
-        self.assertEqual(giraffe.get_object_or_none("redbull.jpg"), 'foo')
+        self.assertEqual(giraffe.get_object_or_none(self.bucket, "redbull.jpg"), 'foo')
 
 
 class TestGetFileOr404(unittest.TestCase):
@@ -238,6 +240,8 @@ class TestIndexRoute(FlaskTestCase):
 
 
 class TestImageRoute(FlaskTestCase):
+    bucket = "wtf"
+
     def setUp(self):
         super(TestImageRoute, self).setUp()
         with Color('red') as bg:
@@ -246,24 +250,28 @@ class TestImageRoute(FlaskTestCase):
         params = OrderedDict()
         params['w'] = 100
         params['h'] = 100
-        giraffe.get_file_or_404.invalidate("redbull.jpg")
-        giraffe.get_file_with_params_or_404.invalidate("redbull.jpg", "{}/redbull_100_100.jpg".format(giraffe.CACHE_DIR),
+        giraffe.get_file_or_404.invalidate(self.bucket, "redbull.jpg")
+        giraffe.get_file_with_params_or_404.invalidate(self.bucket, "redbull.jpg", "{}/redbull_100_100.jpg".format(giraffe.CACHE_DIR),
                                                        params)
 
     @mock.patch('giraffe.s3')
     def test_image_doesnt_exist(self, s3):
         s3.get.side_effect = make_httperror(404)
-        r = self.app.get("/redbull.jpg")
+        r = self.app.get("/{}/redbull.jpg".format(self.bucket))
         self.assertEqual(r.status_code, 404)
 
     @mock.patch('giraffe.s3')
     def test_image_resize_original_doesnt_exist(self, s3):
         s3.get.side_effect = make_httperror(404)
-        r = self.app.get("/redbull.jpg?w=100&h=100")
+        r = self.app.get("/{}/redbull.jpg?w=100&h=100".format(self.bucket))
         self.assertEqual(r.status_code, 404)
 
     def test_image_has_no_extension(self):
-        r = self.app.get("/foo")
+        r = self.app.get("/{}/foo".format(self.bucket))
+        self.assertEqual(r.status_code, 404)
+
+    def test_bucket_only(self):
+        r = self.app.get("/{}".format(self.bucket))
         self.assertEqual(r.status_code, 404)
 
     @mock.patch('giraffe.s3')
@@ -271,7 +279,7 @@ class TestImageRoute(FlaskTestCase):
         obj = mock.Mock()
         obj.content = self.image.make_blob("jpeg")
         s3.get.return_value = obj
-        r = self.app.get("/redbull.jpg")
+        r = self.app.get("/{}/redbull.jpg".format(self.bucket))
         self.assertEqual(r.status_code, 200)
 
     @mock.patch('giraffe.s3')
@@ -281,7 +289,7 @@ class TestImageRoute(FlaskTestCase):
         # we'll call s3.get twice, the first time we'll get the original file, the second time
         # we'll be calling to check for the specific version of the object.
         s3.get.side_effect = [obj, make_httperror(404)]
-        r = self.app.get("/redbull.jpg?w=100&h=100")
+        r = self.app.get("/{}/redbull.jpg?w=100&h=100".format(self.bucket))
         self.assertEqual(r.status_code, 200)
         self.assertEqual(Image(blob=r.data).size, (100, 100))
 
@@ -292,7 +300,7 @@ class TestImageRoute(FlaskTestCase):
         # we'll call s3.get twice, the first time we'll get the original file, the second time
         # we'll be calling to check for the specific version of the object.
         s3.get.side_effect = [obj, make_httperror(404)]
-        r = self.app.get("/redbull.jpg?w=1920&h=1080")
+        r = self.app.get("/{}/redbull.jpg?w=1920&h=1080".format(self.bucket))
         self.assertEqual(r.status_code, 200)
         self.assertEqual(Image(blob=r.data).size, (1920, 1080))
 
@@ -307,7 +315,7 @@ class TestImageRoute(FlaskTestCase):
         # we'll call s3.get twice, the first time we'll get the original file, the second time
         # we'll be calling to check for the specific version of the object.
         s3.get.side_effect = [obj, obj2]
-        r = self.app.get("/redbull.jpg?w=100&h=100")
+        r = self.app.get("/{}/redbull.jpg?w=100&h=100".format(self.bucket))
         self.assertEqual(r.status_code, 200)
         self.assertEqual(Image(blob=r.data).size, (100, 100))
 
