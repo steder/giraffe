@@ -320,6 +320,9 @@ class TestImageRoute(FlaskTestCase):
         self.assertEqual(r.status_code, 200)
         content_type = r.headers.get("content-type")
         self.assertEqual(content_type, "image/png")
+        args, kwargs = s3.upload.call_args
+        self.assertEqual(args[0], "giraffe/redbull.png")
+        self.assertEqual(kwargs['content_type'], "image/png")
         self.assertEqual(Image(blob=r.data).format, 'PNG')
 
     @mock.patch('giraffe.s3')
@@ -381,6 +384,9 @@ class TestImageRoute(FlaskTestCase):
         self.assertEqual(r.status_code, 200)
         content_type = r.headers.get("content-type")
         self.assertEqual(content_type, "image/jpeg")
+        args, kwargs = s3.upload.call_args
+        self.assertEqual(args[0], "giraffe/redbull.jpg")
+        self.assertEqual(kwargs['content_type'], "image/jpeg")
         self.assertEqual(Image(blob=r.data).format, 'JPEG')
 
     @mock.patch('giraffe.s3')

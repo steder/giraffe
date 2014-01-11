@@ -83,15 +83,28 @@ def image_route(path):
     args = get_image_args(request.args)
     params = args.values()
     if params:
-        stuff = [base,]
-        stuff.extend(args.values())
-        filename_with_args = "_".join(str(x) for x in stuff
-                                   if x is not None) + "." + ext
-        # if we enable compression we may want to modify the filename here to include *.gz
-        param_name = os.path.join(CACHE_DIR, dirname, filename_with_args)
+        param_name = calculate_new_path(dirname, base, ext, args)
         return get_file_with_params_or_404(bucket, path, param_name, args)
     else:
         return get_file_or_404(bucket, path)
+
+
+def calculate_new_path(dirname, base, ext, args):
+    stuff = [base,]
+    stuff.extend(args[key] for key in args if key != 'fm')
+ 
+    format = args.get('fm')
+    if format:
+        if format == 'png':
+            ext = 'png'
+        if format == 'jpg' or format == 'jpeg':
+            ext = 'jpg'
+
+    filename_with_args = "_".join(str(x) for x in stuff
+                               if x is not None) + "." + ext
+    # if we enable compression we may want to modify the filename here to include *.gz
+    param_name = os.path.join(CACHE_DIR, dirname, filename_with_args)
+    return param_name
 
 
 def positive_int_or_none(value):
