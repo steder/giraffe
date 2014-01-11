@@ -65,14 +65,8 @@ def index():
     return "Hello World"
 
 
-@app.route("/<path:path>")
-def image_route(path):
-    segments = path.split("/")
-    bucket, path = segments[0], "/".join(segments[1:])
-
-    if not path:
-        return "no path specified", 404
-
+@app.route("/<string:bucket>/<path:path>")
+def image_route(bucket, path):
     dirname = os.path.dirname(path)
     name = os.path.basename(path)
     try:
