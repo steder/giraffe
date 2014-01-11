@@ -36,7 +36,7 @@ elif ENV == "staging":
     app.debug = False
 else:
     app.debug = True
-CACHE_URLS = os.environ.get("MEMCACHED", "").split(";")
+CACHE_URLS = os.environ.get("MEMCACHED").split(";") if os.environ.get("MEMCACHED") else []
 
 s3 = None
 CACHE_DIR = 'giraffe'
