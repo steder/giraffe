@@ -2,11 +2,16 @@
 
 set -e -u -x
 
+ROOT=`dirname "$0"`
+ROOT=`( cd "$ROOT" && pwd )`
+
 sudo mkdir -p /opt
-sudo ln -s . /opt/app
+sudo rm -f /opt/app
+sudo ln -s $ROOT /opt/app
 
 echo "Installing upstart config..."
-sudo ln -s etc/upstart.conf /etc/init/giraffe.conf
+sudo rm -f /etc/init/giraffe.conf
+sudo ln -s $ROOT/etc/upstart.conf /etc/init/giraffe.conf
 
 echo "Updating upstart configuration..."
 sudo initctl reload-configuration

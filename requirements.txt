@@ -7,6 +7,8 @@ dogpile.core==0.4.1
 dogpile.cache==0.5.2
 flexmock==0.9.7
 futures==2.1.5
+gevent
+gunicorn==18.0
 python-binary-memcached
 itsdangerous==0.23
 mock==1.0.1
@@ -17,3 +19,4 @@ requests==2.1.0
 git+git://github.com/smore-inc/tinys3.git@813b3a77107106a4a9020919e549ce1c0b87b3eb#egg=tinys3
 tox==1.6.1
 virtualenv==1.10.1
+
