@@ -9,6 +9,7 @@ import gzip
 import os
 
 from dogpile.cache import make_region
+from dogpile.cache.util import sha1_mangle_key
 from flask import Flask
 from flask import request
 from requests.exceptions import HTTPError
@@ -35,17 +36,29 @@ elif ENV == "staging":
     app.debug = False
 else:
     app.debug = True
-
+CACHE_URLS = os.environ.get("MEMCACHED").split(";") if os.environ.get("MEMCACHED") else []
 
 s3 = None
 CACHE_DIR = 'giraffe'
 CACHE_CONTROL = "max-age=2592000"
 
 
-region = make_region().configure(
-    'dogpile.cache.memory',
-    expiration_time=300,
-)
+if CACHE_URLS:
+    print("starting up with memcached: %s"%(CACHE_URLS,))
+    region = make_region(key_mangler=sha1_mangle_key).configure(
+        'dogpile.cache.bmemcached',
+        expiration_time=86400,
+        arguments = {
+            'url': CACHE_URLS,
+            'distributed_lock': True,
+        },
+    )
+else:
+    print("starting up with in-process memory cache")
+    region = make_region().configure(
+        'dogpile.cache.memory',
+        expiration_time=300,
+    )
 
 
 def connect_s3():
@@ -55,6 +68,9 @@ def connect_s3():
                                os.environ.get("AWS_SECRET_ACCESS_KEY"),
                                )
     return s3
+
+
+connect_s3()
 
 
 ImageOp = namedtuple("ImageOp", 'function params')
@@ -287,5 +303,4 @@ def get_file_with_params_or_404(bucket, path, param_name, args):
 
 
 if __name__ == "__main__":
-    connect_s3()
     app.run("0.0.0.0", 9876)

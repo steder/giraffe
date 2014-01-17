@@ -7,6 +7,7 @@ dogpile.core==0.4.1
 dogpile.cache==0.5.2
 flexmock==0.9.7
 futures==2.1.5
+python-binary-memcached
 itsdangerous==0.23
 mock==1.0.1
 newrelic==2.8.0.7
