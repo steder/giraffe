@@ -46,7 +46,7 @@ CACHE_CONTROL = "max-age=2592000"
 if CACHE_URLS:
     print("starting up with memcached: %s"%(CACHE_URLS,))
     region = make_region(key_mangler=sha1_mangle_key).configure(
-        'dogpile.cache.memcached',
+        'dogpile.cache.bmemcached',
         expiration_time=86400,
         arguments = {
             'url': CACHE_URLS,
