@@ -5,6 +5,7 @@ python:
   - "pypy"
 # command to install dependencies
 install:
+  - if [[ $TRAVIS_PYTHON_VERSION == 'pypy']]; grep -v ^gevent requirements.txt > requirements.txt; fi
   - pip install -r requirements.txt
 # command to run tests
 script: nosetests
