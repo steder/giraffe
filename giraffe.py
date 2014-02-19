@@ -41,6 +41,7 @@ CACHE_URLS = os.environ.get("MEMCACHED").split(";") if os.environ.get("MEMCACHED
 s3 = None
 CACHE_DIR = 'giraffe'
 CACHE_CONTROL = "max-age=2592000"
+DEFAULT_QUALITY = 75
 
 
 if CACHE_URLS:
@@ -137,6 +138,7 @@ def get_image_args(args):
     flip = args.get('flip')
     rot = positive_int_or_none(args.get("rot"))
     fm = args.get('fm')
+    q = positive_int_or_none(args.get('q'))
 
     image_args = OrderedDict()
     if w:
@@ -151,6 +153,8 @@ def get_image_args(args):
         image_args['rot'] = rot
     if fm:
         image_args['fm'] = fm
+    if q:
+        image_args['q'] = q
     return image_args
 
 
@@ -176,8 +180,9 @@ def get_file_or_404(bucket, path):
 
 
 def process_image(img, operations):
+    #print("compression quality:", img.compression_quality)
     for op in operations:
-        print("op:", op)
+        #print("op:", op)
         if callable(op.function):
             img = op.function(img, **op.params)
         if op.function == 'resize':
@@ -224,13 +229,13 @@ def build_pipeline(params):
         elif fit == 'liquid':
             pipeline.append(
                 ImageOp('liquid', {'width': params['w'],
-                                   'height': params['h']}
+                                   'height': params['h'],}
                         )
             )
         else:
             pipeline.append(
                 ImageOp('resize', {'width': params['w'],
-                                   'height': params['h']}
+                                   'height': params['h'],}
                         )
             )
 
@@ -289,6 +294,7 @@ def get_file_with_params_or_404(bucket, path, param_name, args):
             desired_format = args.get('fm', format)
             print("sizes: {} or {}, formats: {} or {}".format(size, img.size, desired_format, format))
             if size != img.size or desired_format != format:
+                img.compression_quality = args.get('q', DEFAULT_QUALITY)
                 image = process_image(img, build_pipeline(args))
                 format = image.format.lower()
                 content_type = "image/{}".format(format)
