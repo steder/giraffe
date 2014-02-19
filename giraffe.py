@@ -292,10 +292,15 @@ def get_file_with_params_or_404(bucket, path, param_name, args):
             content_type = "image/{}".format(format)
             size = min(args.get('w', img.size[0]), img.size[0]), min(args.get('h', img.size[1]), img.size[1])
             desired_format = args.get('fm', format)
-            print("sizes: {} or {}, formats: {} or {}".format(size, img.size, desired_format, format))
-            if size != img.size or desired_format != format:
+            #print("sizes: {} or {}, formats: {} or {}".format(size, img.size, desired_format, format))
+            pipeline = build_pipeline(args)
+            if (size != img.size or desired_format != format or args.get('q', None) is not None
+                or len(pipeline) > 0):
+                # if the desired size, format, quality, or if there are any pipeline operations
+                # to do like flipping the image then we should do something, otherwise we'll
+                # just return the image unchanged from s3.
                 img.compression_quality = args.get('q', DEFAULT_QUALITY)
-                image = process_image(img, build_pipeline(args))
+                image = process_image(img, pipeline)
                 format = image.format.lower()
                 content_type = "image/{}".format(format)
                 temp_handle = image_to_buffer(image, format=format, compress=False)
