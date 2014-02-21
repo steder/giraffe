@@ -102,7 +102,7 @@ def image_route(bucket, path):
 
 def calculate_new_path(dirname, base, ext, args):
     stuff = [base,]
-    for key, val in args.iteritems():
+    for key, val in args.items():
         if key == "fm":
             continue
         if val is not None:
