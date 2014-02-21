@@ -6,6 +6,8 @@ from collections import namedtuple
 from collections import OrderedDict
 from io import BytesIO
 import gzip
+import hashlib
+import hmac
 import os
 
 from dogpile.cache import make_region
@@ -13,6 +15,7 @@ from dogpile.cache.util import sha1_mangle_key
 from flask import Flask
 from flask import request
 from requests.exceptions import HTTPError
+import requests
 import tinys3
 from wand.image import Image
 
@@ -38,8 +41,10 @@ else:
     app.debug = True
 CACHE_URLS = os.environ.get("MEMCACHED").split(";") if os.environ.get("MEMCACHED") else []
 
+SECRET = os.environ.get("GIRAFFE_SECRET", "0x24FEEDFACEDEADBEEFCAFE")
+
 s3 = None
-CACHE_DIR = 'giraffe'
+CACHE_DIR = os.environ.get("GIRAFFE_CACHE_DIR", 'giraffe')
 CACHE_CONTROL = "max-age=2592000"
 DEFAULT_QUALITY = 75
 
@@ -80,6 +85,46 @@ ImageOp = namedtuple("ImageOp", 'function params')
 @app.route("/")
 def index():
     return "Hello World"
+
+
+def generate_hmac(url):
+    return hmac.new(SECRET, url, hashlib.sha1).hexdigest()
+
+
+@app.route("/proxy/<string:image_hmac>")
+def proxy_that_stuff(image_hmac):
+    """
+    How do we handle non-ssl content image urls in the forums?
+
+    The same way github does!  Rewrite the img tags in the forums from:
+
+        <img src="http://example.com/image.jpg">
+
+    To:
+
+        <img src="https://<giraffe>.cloudfront.net/proxy/<HMAC>?url=http://example.com/image.jpg">
+
+    HMAC is a hash of a shared secret and the URL using SHA1.
+
+    So in whatever generates the forum markup you need to have the same SECRET as
+    your deployed Giraffe instance(s).  Then you need to generate a hex digest from
+    the URL with that secret.  (See `generate_hmac` above for an example)
+
+    """
+
+    url = request.args.get("url")
+    if not url:
+        return "Oh noes, you didn't give me a url", 404
+    """
+    Before we just go off and get this image let's make sure the hmac we've
+    got actually matches.
+    """
+    expected_hmac = generate_hmac(url)
+    if expected_hmac != image_hmac:
+        return "Oh noes, your key doesn't match!", 404
+
+    resp = requests.get(url)
+    return resp.content, 200, {"Content-Type": resp.headers['content-type'], "Cache-Control": CACHE_CONTROL}
 
 
 @app.route("/<string:bucket>/<path:path>")
