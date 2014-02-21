@@ -189,7 +189,21 @@ def process_image(img, operations):
         if callable(op.function):
             img = op.function(img, **op.params)
         if op.function == 'resize':
-            img.resize(**op.params)
+            if not op.params.get('width'):
+                size = "x{}".format(op.params['height'])
+                img.transform(resize=size)
+            elif not op.params.get('height'):
+                size = "{}".format(op.params['width'])
+                img.transform(resize=size)
+            else:
+                # this is my attempt at ResizeToFit from PILKit:
+                size = "{}x{}^".format(op.params['width'], op.params['height'])
+                img.transform(resize=size)
+                w_offset = max((img.width - op.params['width']) / 2, 0)
+                h_offset = max((img.height - op.params['height']) / 2, 0)
+                geometry = "{}+{}+{}".format(size, w_offset, h_offset)
+                img.transform(crop=geometry)
+
         if op.function == 'liquid':
             # this will raise a MissingDelegateError if you don't compile
             # imagemagick with the `--with-lqr` option.
@@ -207,7 +221,7 @@ def fit_crop(img, width=None, height=None, anchor=None):
     # regarding offset: based on anchor being 'top', 'bottom', 'left', 'right'
     # we should adjust offset.  By default this empty offset
     # means we will always crop to the center.
-    offset = '' 
+    offset = ''
     crop = "{}x{}{}".format(width, height, offset)
     resize = ''
     img.transform(crop, resize)
@@ -241,6 +255,14 @@ def build_pipeline(params):
                                    'height': params['h'],}
                         )
             )
+    elif 'h' in params:
+        pipeline.append(
+            ImageOp('resize', {'height': params["h"]})
+        )
+    elif 'w' in params:
+        pipeline.append(
+            ImageOp('resize', {'width': params["w"]})
+        )
 
     flip = params.get('flip')
     if flip:
@@ -312,7 +334,7 @@ def get_file_with_params_or_404(bucket, path, param_name, args):
                 return temp_handle.read(), 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
             else:
                 return key.content, 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
-    else: 
+    else:
         return "404: original file '{}' doesn't exist".format(path), 404
 
 
