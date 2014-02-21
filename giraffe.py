@@ -102,8 +102,12 @@ def image_route(bucket, path):
 
 def calculate_new_path(dirname, base, ext, args):
     stuff = [base,]
-    stuff.extend(args[key] for key in args if key != 'fm')
- 
+    for key, val in args.iteritems():
+        if key == "fm":
+            continue
+        if val is not None:
+            stuff.append("{}{}".format(key, val))
+
     format = args.get('fm')
     if format:
         if format == 'png':
@@ -111,8 +115,7 @@ def calculate_new_path(dirname, base, ext, args):
         if format == 'jpg' or format == 'jpeg':
             ext = 'jpg'
 
-    filename_with_args = "_".join(str(x) for x in stuff
-                               if x is not None) + "." + ext
+    filename_with_args = "_".join(str(x) for x in stuff) + "." + ext
     # if we enable compression we may want to modify the filename here to include *.gz
     param_name = os.path.join(CACHE_DIR, dirname, filename_with_args)
     return param_name
