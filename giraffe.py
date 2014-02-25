@@ -82,6 +82,50 @@ def index():
     return "Hello World"
 
 
+@app.route("/placeholders/<string:filename>")
+def placeholder_it(filename):
+    bg = request.args.get('bg', '#fff')
+    filename = filename.lower()
+    basename, ext = os.path.splitext(filename)
+    ext = ext.strip(".")
+    width, height = basename.split("x")
+    width, height = int(width), int(height)
+    content_type = 'image/{}'.format(ext)
+
+    if ext in ('jpg', 'jpeg'):
+        format = 'jpg'
+    elif ext == 'png':
+        format = 'png'
+    else:
+        return "I don't know how to handle format .{} files".format(ext), 404
+
+    print("{}, {}, {}, {}, {}".format(
+        basename, ext,
+        width, height,
+        content_type))
+
+    from wand.color import Color
+    from wand.image import Image
+    from wand.font import Font
+
+    size = 16 * (height / 100)
+
+    print("size: %s", size)
+
+    font = Font(path='fonts/Inconsolata-dz-Powerline.otf', size=size)
+    c = Color(bg) if format == "jpg" else None
+    with Image(width=width, height=height, background=c) as image:
+        image.caption('{}x{}'.format(image.width, image.height), left=5, top=5,
+                      font=font,
+                      gravity="center")
+
+        image.save(filename='caption-result.png')
+
+        buff = image_to_buffer(image, format=ext, compress=False)
+        buff.seek(0)
+        return buff.read(), 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
+
+
 @app.route("/<string:bucket>/<path:path>")
 def image_route(bucket, path):
     dirname = os.path.dirname(path)
