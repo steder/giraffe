@@ -1,5 +1,8 @@
+import os
+
 import boto
 from fabric.api import cd, env, run, task
+from fabric.operations import put
 
 name_tag = "giraffe"
 
@@ -27,6 +30,10 @@ def deploy():
     run('uname -s')
     run('ls')
     run('sudo service giraffe status')
+    if os.path.exists('conf.sh'):
+        put('conf.sh', 'giraffe')
+    else:
+        print "Couldn't find a local 'conf.sh' file to load to set giraffe service environment variables (see the app.sh file)"
     with cd('giraffe'):
         run('git pull')
     run('sudo service giraffe restart')
