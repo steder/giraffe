@@ -1,3 +1,13 @@
+"""
+You'll need to set these environment variables:
+
+ - AWS_ACCESS_KEY_ID
+ - AWS_SECRET_ACCESS_KEY
+
+I'd recommend setting them in your ``app.sh`` file.
+
+"""
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -17,20 +27,11 @@ from flask import request
 from requests.exceptions import HTTPError
 import requests
 import tinys3
+from wand.color import Color
+from wand.font import Font
 from wand.image import Image
 
 
-"""
-You'll need to set these environment variables:
-
- - AWS_ACCESS_KEY_ID
- - AWS_SECRET_ACCESS_KEY
-
-I'd recommend setting them in your ``app.sh`` file.
-
-"""
-
-#
 app = Flask(__name__)
 ENV = os.environ.get("ENV", "development").lower()
 if ENV == "production":
@@ -85,6 +86,46 @@ ImageOp = namedtuple("ImageOp", 'function params')
 @app.route("/")
 def index():
     return "Hello World"
+
+
+@app.route("/placeholders/<string:filename>")
+def placeholder_it(filename):
+    bg = '#' + request.args.get('bg', 'fff')
+    #print('bg color:', bg)
+    filename = filename.lower()
+    basename, ext = os.path.splitext(filename)
+    ext = ext.strip(".")
+    width, height = basename.split("x")
+    width, height = int(width), int(height)
+    content_type = 'image/{}'.format(ext)
+
+    if ext in ('jpg', 'jpeg'):
+        fmt = 'jpg'
+    elif ext == 'png':
+        fmt = 'png'
+    else:
+        return "I don't know how to handle format .{} files".format(ext), 404
+
+    # print("{}, {}, {}, {}, {}".format(
+    #     basename, ext,
+    #     width, height,
+    #     content_type))
+
+    text = '{}x{}'.format(width, height)
+    min_font_ratio = width / (len(text) * 12.0)
+    size = max(16 * (height / 100), 16 * min_font_ratio)
+
+    #print("size: %s", size)
+
+    font = Font(path='fonts/Inconsolata-dz-Powerline.otf', size=size)
+    c = Color(bg) if fmt == "jpg" else None
+    with Image(width=width, height=height, background=c) as image:
+        image.caption(text, left=0, top=0,
+                      font=font,
+                      gravity="center")
+        buff = image_to_buffer(image, fmt=ext, compress=False)
+        buff.seek(0)
+        return buff.read(), 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
 
 
 def generate_hmac(url):
@@ -153,11 +194,11 @@ def calculate_new_path(dirname, base, ext, args):
         if val is not None:
             stuff.append("{}{}".format(key, val))
 
-    format = args.get('fm')
-    if format:
-        if format == 'png':
+    fmt = args.get('fm')
+    if fmt:
+        if fmt == 'png':
             ext = 'png'
-        if format == 'jpg' or format == 'jpeg':
+        if fmt == 'jpg' or fmt == 'jpeg':
             ext = 'jpg'
 
     filename_with_args = "_".join(str(x) for x in stuff) + "." + ext
@@ -329,9 +370,9 @@ def build_pipeline(params):
     return pipeline
 
 
-def image_to_buffer(img, format='JPEG', compress=False):
+def image_to_buffer(img, fmt='JPEG', compress=False):
     buffer = BytesIO()
-    img.format = format
+    img.format = fmt
     if compress:
         filename, mode, compresslevel, mtime = '', 'wb', 9, None
         gz = gzip.GzipFile(filename, mode, compresslevel, buffer, mtime)
@@ -341,8 +382,8 @@ def image_to_buffer(img, format='JPEG', compress=False):
     return buffer
 
 
-def image_to_binary(img, format='JPEG'):
-    return img.make_blob(format)
+def image_to_binary(img, fmt='JPEG'):
+    return img.make_blob(fmt)
 
 
 @region.cache_on_arguments()
@@ -358,22 +399,22 @@ def get_file_with_params_or_404(bucket, path, param_name, args):
         else:
             #print("processing image")
             img = Image(blob=BytesIO(key.content))
-            format = img.format.lower()
-            content_type = "image/{}".format(format)
+            fmt = img.format.lower()
+            content_type = "image/{}".format(fmt)
             size = min(args.get('w', img.size[0]), img.size[0]), min(args.get('h', img.size[1]), img.size[1])
-            desired_format = args.get('fm', format)
+            desired_format = args.get('fm', fmt)
             #print("sizes: {} or {}, formats: {} or {}".format(size, img.size, desired_format, format))
             pipeline = build_pipeline(args)
-            if (size != img.size or desired_format != format or args.get('q', None) is not None
+            if (size != img.size or desired_format != fmt or args.get('q', None) is not None
                 or len(pipeline) > 0):
                 # if the desired size, format, quality, or if there are any pipeline operations
                 # to do like flipping the image then we should do something, otherwise we'll
                 # just return the image unchanged from s3.
                 img.compression_quality = args.get('q', DEFAULT_QUALITY)
                 image = process_image(img, pipeline)
-                format = image.format.lower()
-                content_type = "image/{}".format(format)
-                temp_handle = image_to_buffer(image, format=format, compress=False)
+                fmt = image.format.lower()
+                content_type = "image/{}".format(fmt)
+                temp_handle = image_to_buffer(image, fmt=fmt, compress=False)
                 s3.upload(param_name, temp_handle, bucket=bucket, content_type=content_type, rewind=True, public=True)
                 temp_handle.seek(0)
                 return temp_handle.read(), 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}

@@ -1,0 +1,6 @@
+-r requirements.txt
+boto==2.25.0
+ecdsa
+fabric
+paramiko
+pycrypto
