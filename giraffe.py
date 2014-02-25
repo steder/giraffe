@@ -174,7 +174,7 @@ def image_route(bucket, path):
     name = os.path.basename(path)
     try:
         base, ext = name.split(".")
-    except:
+    except Exception:
         return "no extension specified", 404
 
     args = get_image_args(request.args)
@@ -308,6 +308,8 @@ def fit_crop(img, width=None, height=None, anchor=None):
     # we should adjust offset.  By default this empty offset
     # means we will always crop to the center.
     offset = ''
+    if anchor == 'top':
+        offset = ''
     crop = "{}x{}{}".format(width, height, offset)
     resize = ''
     img.transform(crop, resize)
@@ -371,15 +373,15 @@ def build_pipeline(params):
 
 
 def image_to_buffer(img, fmt='JPEG', compress=False):
-    buffer = BytesIO()
+    buff = BytesIO()
     img.format = fmt
     if compress:
         filename, mode, compresslevel, mtime = '', 'wb', 9, None
-        gz = gzip.GzipFile(filename, mode, compresslevel, buffer, mtime)
+        gz = gzip.GzipFile(filename, mode, compresslevel, buff, mtime)
         img.save(file=gz)
     else:
-        img.save(file=buffer)
-    return buffer
+        img.save(file=buff)
+    return buff
 
 
 def image_to_binary(img, fmt='JPEG'):
