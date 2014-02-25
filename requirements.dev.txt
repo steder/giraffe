@@ -1,2 +1,2 @@
 -r requirements.txt
-boto==2.21.0
+boto==2.25.0
