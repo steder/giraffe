@@ -34,7 +34,7 @@ class TestBuildPipelineFromParams(unittest.TestCase):
         pipeline = giraffe.build_pipeline(
            {"w": 100, "h": 50}
         )
-        self.assertEqual(pipeline, 
+        self.assertEqual(pipeline,
             [giraffe.ImageOp('resize', {'width': 100, 'height': 50}),
             ]
         )
@@ -147,7 +147,7 @@ class TestGetImageArgs(unittest.TestCase):
     def test_flip_horizontal(self):
         self.assertEqual(giraffe.get_image_args({"flip": "h"}),
                          {'flip': 'h'})
-    
+
     def test_flip_both(self):
         self.assertEqual(giraffe.get_image_args({"flip": "hv"}),
                          {'flip': 'hv'})
@@ -272,7 +272,7 @@ class TestImageRoute(FlaskTestCase):
         params['w'] = 100
         params['h'] = 100
         giraffe.get_file_or_404.invalidate(self.bucket, "redbull.jpg")
-        giraffe.get_file_with_params_or_404.invalidate(self.bucket, "redbull.jpg", "{}/redbull_100_100.jpg".format(giraffe.CACHE_DIR),
+        giraffe.get_file_with_params_or_404.invalidate(self.bucket, "redbull.jpg", "{}/redbull_w100_h100.jpg".format(giraffe.CACHE_DIR),
                                                        params)
 
     @mock.patch('giraffe.s3')
@@ -351,7 +351,7 @@ class TestImageRoute(FlaskTestCase):
     def test_image_exists_and_has_already_been_resized(self, s3):
         obj = mock.Mock()
         obj.content = self.image.make_blob("jpeg")
-        obj2 = mock.Mock() 
+        obj2 = mock.Mock()
         with self.image.clone() as img:
             img.resize(100, 100)
             obj2.content = img.make_blob("jpeg")
@@ -427,7 +427,7 @@ class TestImageRoute(FlaskTestCase):
     def test_png_exists_and_has_already_been_resized(self, s3):
         obj = mock.Mock()
         obj.content = self.image.make_blob("png")
-        obj2 = mock.Mock() 
+        obj2 = mock.Mock()
         with self.image.clone() as img:
             img.resize(100, 100)
             obj2.content = img.make_blob("png")
