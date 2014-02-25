@@ -8,7 +8,6 @@ name_tag = "giraffe"
 
 
 def get_hosts():
-    global instances
     ec2 = boto.connect_ec2()
     hosts = []
     for i in ec2.get_only_instances():
