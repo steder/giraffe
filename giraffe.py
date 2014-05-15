@@ -365,8 +365,12 @@ def build_pipeline(params):
                 ImageOp('flip', {})
             )
 
-    rot = params.get('rot')
+    rot = params.get('rot', None)
     if rot:
+        rot = positive_int_or_none(rot)
+        if rot is None or rot >= 360:
+            raise HTTPError(400)
+
         pipeline.append(
             ImageOp('rotate', {'degrees': int(rot)})
         )
