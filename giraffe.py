@@ -300,6 +300,8 @@ def process_image(img, operations):
             img.flop()
         if op.function == 'format':
             img.format = op.params['format']
+        if op.function == 'rotate':
+            img.rotate(op.params['degrees'])
     return img
 
 
@@ -362,6 +364,12 @@ def build_pipeline(params):
             pipeline.append(
                 ImageOp('flip', {})
             )
+
+    rot = params.get('rot')
+    if rot:
+        pipeline.append(
+            ImageOp('rotate', {'degrees': int(rot)})
+        )
 
     fm = params.get('fm')
     if fm == 'png':
