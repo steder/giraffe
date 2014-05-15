@@ -57,6 +57,7 @@ it will simply return it, otherwise it'll use the original to generate the
   - left (TBD)
   - right (TBD)
  - flip (flip horizontally `flip=h`, vertically `flip=v` or both `flip=hv`)
+ - rot (rotate, 1-359 degrees)
 
 ## Setup
 
