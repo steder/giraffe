@@ -69,6 +69,13 @@ At a system level you'll need:
 
 For deployment with Gunicorn you may also want `libev`.
 
+### Configuration
+
+You need to set the following environment variables for giraffe to work properly:
+
+ - AWS_ACCESS_KEY_ID
+ - AWS_SECRET_ACCESS_KEY
+
 ### Development
 
 ```
