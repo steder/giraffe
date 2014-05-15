@@ -6,6 +6,7 @@ import unittest
 
 import mock
 import requests
+from requests.exceptions import HTTPError
 from wand.color import Color
 from wand.drawing import Drawing
 from wand.image import Image
@@ -84,6 +85,13 @@ class TestBuildPipelineFromParams(unittest.TestCase):
             ]
         )
 
+    def test_bad_rotate(self):
+        self.assertRaises(HTTPError, giraffe.build_pipeline, ({"rot":-1}))
+        self.assertRaises(HTTPError, giraffe.build_pipeline, ({"rot":360}))
+        self.assertRaises(HTTPError, giraffe.build_pipeline, ({"rot":"stringy"}))
+
+        giraffe.build_pipeline({"rot":1.0})
+        giraffe.build_pipeline({"rot":1.1})
 
 class TestGetImageArgs(unittest.TestCase):
     def test_no_params(self):
