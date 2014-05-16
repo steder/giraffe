@@ -1,7 +1,7 @@
 Flask==0.10.1
 Jinja2==2.7.1
 MarkupSafe==0.18
-Wand==0.3.5
+Wand==0.3.7
 Werkzeug==0.9.4
 dogpile.core==0.4.1
 dogpile.cache==0.5.2

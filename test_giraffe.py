@@ -6,8 +6,11 @@ import unittest
 
 import mock
 import requests
+from requests.exceptions import HTTPError
 from wand.color import Color
+from wand.drawing import Drawing
 from wand.image import Image
+from werkzeug.exceptions import BadRequest
 
 import giraffe
 
@@ -73,6 +76,23 @@ class TestBuildPipelineFromParams(unittest.TestCase):
         self.assertEqual(pipeline[1].function, "format")
         self.assertEqual(pipeline[1].params, {'format': 'png'})
 
+    def test_rotate(self):
+        pipeline = giraffe.build_pipeline(
+            {"rot": 90}
+        )
+
+        self.assertEqual(pipeline,
+            [giraffe.ImageOp('rotate', {'degrees' : 90}),
+            ]
+        )
+
+    def test_bad_rotate(self):
+        self.assertRaises(BadRequest, giraffe.build_pipeline, ({"rot":-1}))
+        self.assertRaises(BadRequest, giraffe.build_pipeline, ({"rot":360}))
+        self.assertRaises(BadRequest, giraffe.build_pipeline, ({"rot":"stringy"}))
+
+        giraffe.build_pipeline({"rot":1.0})
+        giraffe.build_pipeline({"rot":1.1})
 
 class TestGetImageArgs(unittest.TestCase):
     def test_no_params(self):
@@ -247,6 +267,32 @@ class TestImageResize(unittest.TestCase):
         img = giraffe.process_image(self.image, pipeline)
         self.assertEqual(img.size, (100, 100))
 
+
+class TestImageRotate(unittest.TestCase):
+    def test_rotate(self):
+        # draw an image with a single red column in the middle
+        with Color('white') as bg, Color('red') as fg:
+            image = Image(width=100, height=100, background=bg)
+            with Drawing() as draw:
+                draw.fill_color = fg
+                draw.stroke_color = fg
+                draw.rectangle(left=50, top=0, right=54, bottom=image.height)
+                draw(image)
+
+        pipeline = [giraffe.ImageOp('rotate', {'degrees':90})]
+        rotated_image = giraffe.process_image(image, pipeline)
+
+        # verify that that image has a sideways bar of red in the middle
+        for i, row in enumerate(rotated_image):
+            for col in row:
+                self.assertEqual(col.red, 1.0)
+
+                if 50 <= i <= 54:
+                    self.assertEqual(col.blue, 0.0)
+                    self.assertEqual(col.green, 0.0)
+                else:
+                    self.assertNotEqual(col.blue, 0.0)
+                    self.assertNotEqual(col.green, 0.0)
 
 class TestIndexRoute(FlaskTestCase):
     """

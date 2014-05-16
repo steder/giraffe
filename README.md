@@ -57,6 +57,7 @@ it will simply return it, otherwise it'll use the original to generate the
   - left (TBD)
   - right (TBD)
  - flip (flip horizontally `flip=h`, vertically `flip=v` or both `flip=hv`)
+ - rot (rotate, 1-359 degrees)
 
 ## Setup
 
@@ -67,6 +68,13 @@ At a system level you'll need:
  - `ImageMagick` (remember to use `--with-liblqr` if you want to be able to use content-aware resizing)
 
 For deployment with Gunicorn you may also want `libev`.
+
+### Configuration
+
+You need to set the following environment variables for giraffe to work properly:
+
+ - AWS_ACCESS_KEY_ID
+ - AWS_SECRET_ACCESS_KEY
 
 ### Development
 
