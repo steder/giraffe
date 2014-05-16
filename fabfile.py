@@ -1,7 +1,7 @@
 import os
 
 import boto
-from fabric.api import cd, env, run, task
+from fabric.api import cd, env, prefix, run, task
 from fabric.operations import put
 
 name_tag = "giraffe"
@@ -34,7 +34,12 @@ def deploy():
     else:
         print "Couldn't find a local 'conf.sh' file to load to set giraffe service environment variables (see the app.sh file)"
     with cd('giraffe'):
+        run('find . -name "*.pyc" -print -delete')
+        run('git checkout master')
         run('git pull')
+        with prefix('source /opt/app/env/bin/activate'):
+            run('pip install -U -r requirements.txt')
+
     run('sudo service giraffe restart')
     run('sudo service giraffe status')
     run('echo "deployed!"')
