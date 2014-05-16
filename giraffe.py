@@ -30,6 +30,7 @@ import tinys3
 from wand.color import Color
 from wand.font import Font
 from wand.image import Image
+from werkzeug.exceptions import BadRequest
 
 
 app = Flask(__name__)
@@ -369,7 +370,7 @@ def build_pipeline(params):
     if rot:
         rot = positive_int_or_none(rot)
         if rot is None or rot >= 360:
-            raise HTTPError(400)
+            raise BadRequest(description='"%s" is not a valid rotation value' % str(rot))
 
         pipeline.append(
             ImageOp('rotate', {'degrees': int(rot)})
