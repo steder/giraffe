@@ -24,6 +24,12 @@ env.forward_agent = True
 
 
 @task
+def hostname():
+    run("hostname")
+
+
+
+@task
 def deploy():
     run('echo "deploying..."')
     run('uname -s')

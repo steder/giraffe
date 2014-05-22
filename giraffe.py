@@ -52,6 +52,14 @@ DEFAULT_QUALITY = 75
 
 
 if CACHE_URLS:
+    # TODO: memcached fails to cache when the cached object
+    # is over 1MB (which can happen with some larger images)
+    # so we may want to simply remove the memcached caching
+    # or replace with a cache backend that is more tolerant of
+    # larger objects.
+    #
+    # For now I'm just disabling memcache on our projects and relying
+    # on cloudfront for most of our caching needs.
     print("starting up with memcached: %s"%(CACHE_URLS,))
     region = make_region(key_mangler=sha1_mangle_key).configure(
         'dogpile.cache.bmemcached',
