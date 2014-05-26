@@ -2,9 +2,13 @@
 
 Image pipelines are hard; let's go ride bikes!
 
-## WTF?
+This is partly a reaction to looking at the imgix service, which is "not just imagemagick on ec2", and saying that "imagemagick on ec2" sounds an awful lot like something I actually want.
 
-The names will change.
+![travis ci builid status](https://travis-ci.org/steder/giraffe.png)
+
+## Why call it Giraffe?
+
+I wanted a name with a soft G sound and I didn't have any better ideas.  I'm actively soliciting suggestions for a better name.
 
 ## About
 
@@ -87,7 +91,11 @@ pip install -r requirements.txt
 
 ```
 nosetests
-OR
+```
+
+Or to test on multiple versions of Python:
+
+```
 tox
 ```
 
@@ -97,7 +105,14 @@ Check out `install.sh`
 
 ## TODO
 
- - cache-control headers
- - png support
+ - documentation of camo functionality (proxying insecure image URLs like [atmos/camo](https://github.com/atmos/camo)
+ - documentation of placeholder functionality
+ - support more imgix functionality
+ - better caching: memcache caching of images is problematic; memcache complains about caching values over 1MB and it is sadly quite easy to do.
+ - Use ec2-metadata and AWS roles to distribute S3 access tokens
+ 
 
-![travis ci builid status](https://travis-ci.org/steder/giraffe.png)
+## Sites
+
+ - Threadless.com
+ - Typetees.com
