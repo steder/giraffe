@@ -496,3 +496,16 @@ class TestImageRoute(FlaskTestCase):
         content_type = r.headers.get("content-type")
         self.assertEqual(content_type, "image/bmp")
         self.assertEqual(Image(blob=r.data).format, 'BMP')
+
+    @mock.patch('giraffe.s3')
+    def test_giant_image_resize(self, s3):
+        obj = mock.Mock()
+        self.image = Image(width=12402, height=8770)
+        obj.content = self.image.make_blob("jpg")
+        obj.headers = {'content-type': 'image/jpg'}
+        s3.get.side_effect = [obj, make_httperror(404)]
+        r = self.app.get("/{}/giant.jpg?w=120&h=120".format(self.bucket))
+        self.assertEqual(r.status_code, 200)
+        content_type = r.headers.get("content-type")
+        self.assertEqual(content_type, "image/jpg")
+        self.assertEqual(Image(blob=r.data).size, (120, 120))
