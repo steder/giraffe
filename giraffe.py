@@ -24,6 +24,7 @@ from dogpile.cache import make_region
 from dogpile.cache.util import sha1_mangle_key
 from flask import Flask
 from flask import request
+from PIL import Image as PillowImage
 from requests.exceptions import HTTPError
 import requests
 import tinys3
@@ -49,7 +50,7 @@ s3 = None
 CACHE_DIR = os.environ.get("GIRAFFE_CACHE_DIR", 'giraffe')
 CACHE_CONTROL = "max-age=2592000"
 DEFAULT_QUALITY = 75
-
+MAX_PIXELS = 7680 * 4320 # 8K resolution is pretty damn big
 
 if CACHE_URLS:
     # TODO: memcached fails to cache when the cached object
@@ -77,6 +78,13 @@ else:
     )
 
 
+
+def get_image_size(bytes):
+    img = PillowImage.open(BytesIO(bytes))
+    width, height = img.size
+    return width, height
+
+
 def connect_s3():
     global s3
     if not s3:
@@ -98,7 +106,7 @@ def index():
 
 
 @app.route("/placeholders/<string:filename>")
-def placeholder_it(filename):
+def placeholder_it(filename, message=None):
     bg = '#' + request.args.get('bg', 'fff')
     #print('bg color:', bg)
     filename = filename.lower()
@@ -120,7 +128,10 @@ def placeholder_it(filename):
     #     width, height,
     #     content_type))
 
-    text = '{}x{}'.format(width, height)
+    if message:
+        text = message
+    else:
+        text = '{}x{}'.format(width, height)
     min_font_ratio = width / (len(text) * 12.0)
     size = max(16 * (height / 100), 16 * min_font_ratio)
 
@@ -421,10 +432,14 @@ def get_file_with_params_or_404(bucket, path, param_name, args):
             return custom_key.content, 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
         else:
             #print("processing image")
+            width, height = get_image_size(key.content)
+            if (width * height) > MAX_PIXELS:
+                width, height = min(args.get('w', width), width), min(args.get('h', height), height)
+                return placeholder_it("{}x{}.jpg".format(width, height))
             img = Image(blob=BytesIO(key.content))
             fmt = img.format.lower()
-            content_type = "image/{}".format(fmt)
             size = min(args.get('w', img.size[0]), img.size[0]), min(args.get('h', img.size[1]), img.size[1])
+            content_type = "image/{}".format(fmt)
             desired_format = args.get('fm', fmt)
             #print("sizes: {} or {}, formats: {} or {}".format(size, img.size, desired_format, format))
             pipeline = build_pipeline(args)
