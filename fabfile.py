@@ -12,9 +12,10 @@ def get_hosts():
     hosts = []
     for i in ec2.get_only_instances():
         if i.tags.get("Name") == name_tag:
-            hosts.append("{}@{}".format(
-                "ubuntu", i.private_ip_address
-            ))
+            if i.private_ip_address:
+                hosts.append("{}@{}".format(
+                    "ubuntu", i.private_ip_address
+                ))
     print "hosts:", hosts
     return hosts
 
@@ -28,6 +29,10 @@ def hostname():
     run("hostname")
 
 
+@task
+def clean_tmp():
+    run("sudo rm -vf /tmp/magick-*")
+
 
 @task
 def deploy():
@@ -35,10 +40,6 @@ def deploy():
     run('uname -s')
     run('ls')
     run('sudo service giraffe status')
-    if os.path.exists('conf.sh'):
-        put('conf.sh', 'giraffe')
-    else:
-        print "Couldn't find a local 'conf.sh' file to load to set giraffe service environment variables (see the app.sh file)"
     with cd('giraffe'):
         run('find . -name "*.pyc" -print -delete')
         run('git checkout master')
