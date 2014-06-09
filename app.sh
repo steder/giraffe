@@ -13,8 +13,13 @@ ROOT=`( cd "$ROOT" && pwd )`
 
 echo "ROOT=$ROOT"
 
-export ENV=production
+echo "Loading ec2metadata..."
+
+`ec2metadata --user-data`
+
+export ENV=$CLOUD_DEV_PHASE
 export NEW_RELIC_CONFIG_FILE="$ROOT/etc/newrelic.ini"
+export NEW_RELIC_ENVIRONMENT=$CLOUD_DEV_PHASE
 
 if [ -e $ROOT/conf.sh ]; then
     source $ROOT/conf.sh
