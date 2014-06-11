@@ -19,6 +19,7 @@ import gzip
 import hashlib
 import hmac
 import os
+import re
 
 from dogpile.cache import make_region
 from dogpile.cache.util import sha1_mangle_key
@@ -78,7 +79,6 @@ else:
     )
 
 
-
 def get_image_size(bytes):
     img = PillowImage.open(BytesIO(bytes))
     width, height = img.size
@@ -100,6 +100,50 @@ connect_s3()
 ImageOp = namedtuple("ImageOp", 'function params')
 
 
+JPEG_REGEX = re.compile(r".*(jpe|jpg|jpeg)$", re.I)
+
+
+def extension_to_format(ext):
+    """
+    Punch possible extensions into a common format string
+
+     e.g.:
+
+      .jpg -> jpg
+      .JPG -> jpg
+      jpe  -> jpg
+      JPE  -> jpg
+      JPEG -> jpg
+
+    """
+    if JPEG_REGEX.match(ext):
+        return "jpg"
+    return ext.lower().strip(".")
+
+
+def normalize_mimetype(ext):
+    """
+    Punch possible extensions into a common format string
+
+     e.g.:
+
+      .jpg -> jpeg
+      .JPG -> jpeg
+      jpe  -> jpeg
+      JPE  -> jpeg
+      JPEG -> jpeg
+
+    """
+    if JPEG_REGEX.match(ext):
+        return "jpeg"
+    return ext.lower().strip(".")
+
+
+def path_to_format(path):
+    name, ext = os.path.splitext(os.path.basename(path))
+    return extension_to_format(ext)
+
+
 @app.route("/")
 def index():
     return "Hello World"
@@ -114,7 +158,7 @@ def placeholder_it(filename, message=None):
     ext = ext.strip(".")
     width, height = basename.split("x")
     width, height = int(width), int(height)
-    content_type = 'image/{}'.format(ext)
+    content_type = 'image/{}'.format(normalize_mimetype(ext))
 
     if ext in ('jpg', 'jpeg'):
         fmt = 'jpg'
@@ -427,36 +471,45 @@ def get_file_with_params_or_404(bucket, path, param_name, args):
         #print("bucket: {}, path {}, param_name {}, args {}".format(bucket, path, param_name, args))
         custom_key = get_object_or_none(bucket, param_name)
         if custom_key:
-            #print("processed image already exists")
+            print("processed image already exists")
             content_type = custom_key.headers.get('content-type', "image/jpeg")
             return custom_key.content, 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
         else:
-            #print("processing image")
+            print("processing image")
+
             width, height = get_image_size(key.content)
             if (width * height) > MAX_PIXELS:
                 width, height = min(args.get('w', width), width), min(args.get('h', height), height)
                 return placeholder_it("{}x{}.jpg".format(width, height))
             img = Image(blob=BytesIO(key.content))
             fmt = img.format.lower()
+
+            default_format = path_to_format(path)
+
             size = min(args.get('w', img.size[0]), img.size[0]), min(args.get('h', img.size[1]), img.size[1])
-            content_type = "image/{}".format(fmt)
-            desired_format = args.get('fm', fmt)
+            content_type = "image/{}".format(normalize_mimetype(fmt))
+            desired_format = args.get('fm', default_format)
+
             #print("sizes: {} or {}, formats: {} or {}".format(size, img.size, desired_format, format))
             pipeline = build_pipeline(args)
+
+            print("pipeline:", pipeline, "fmt: %s, default_format: %s, desired_format: %s"%(fmt, default_format, desired_format))
             if (size != img.size or desired_format != fmt or args.get('q', None) is not None
                 or len(pipeline) > 0):
+                print("NEW IMAGE")
                 # if the desired size, format, quality, or if there are any pipeline operations
                 # to do like flipping the image then we should do something, otherwise we'll
                 # just return the image unchanged from s3.
                 img.compression_quality = args.get('q', DEFAULT_QUALITY)
                 image = process_image(img, pipeline)
                 fmt = image.format.lower()
-                content_type = "image/{}".format(fmt)
-                temp_handle = image_to_buffer(image, fmt=fmt, compress=False)
+                content_type = "image/{}".format(normalize_mimetype(desired_format))
+                temp_handle = image_to_buffer(image, fmt=desired_format, compress=False)
                 s3.upload(param_name, temp_handle, bucket=bucket, content_type=content_type, rewind=True, public=True)
                 temp_handle.seek(0)
                 return temp_handle.read(), 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
             else:
+                print("NOT NEW")
                 return key.content, 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
     else:
         return "404: original file '{}' doesn't exist".format(path), 404

@@ -90,7 +90,7 @@ pip install -r requirements.txt
 #### Testing
 
 ```
-nosetests
+nosetests --logging-clear-handlers
 ```
 
 Or to test on multiple versions of Python:
@@ -110,7 +110,7 @@ Check out `install.sh`
  - support more imgix functionality
  - better caching: memcache caching of images is problematic; memcache complains about caching values over 1MB and it is sadly quite easy to do.
  - Use ec2-metadata and AWS roles to distribute S3 access tokens
- 
+
 
 ## Sites
 

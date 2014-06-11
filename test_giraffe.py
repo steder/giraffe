@@ -94,6 +94,42 @@ class TestBuildPipelineFromParams(unittest.TestCase):
         giraffe.build_pipeline({"rot":1.0})
         giraffe.build_pipeline({"rot":1.1})
 
+
+class TestExtractingFormats(unittest.TestCase):
+    def test_dot_jpg(self):
+        self.assertEqual(giraffe.extension_to_format(".jpg"), "jpg")
+
+    def test_jpg(self):
+        self.assertEqual(giraffe.extension_to_format("jpg"), "jpg")
+
+    def test_JPG(self):
+        self.assertEqual(giraffe.extension_to_format("JPG"), "jpg")
+
+    def test_jpe(self):
+        self.assertEqual(giraffe.extension_to_format("JPE"), "jpg")
+
+    def test_jpeg(self):
+        self.assertEqual(giraffe.extension_to_format("JpEg"), "jpg")
+
+    def test_gif(self):
+        self.assertEqual(giraffe.extension_to_format("gif"), "gif")
+
+    def test_GIF(self):
+        self.assertEqual(giraffe.extension_to_format("GIF"), "gif")
+
+    def test_dot_gif(self):
+        self.assertEqual(giraffe.extension_to_format(".GIF"), "gif")
+
+    def test_filename_jpg(self):
+        self.assertEqual(giraffe.path_to_format("hello.jpeg"), "jpg")
+
+    def test_filename_gif(self):
+        self.assertEqual(giraffe.path_to_format("hello.gif"), "gif")
+
+    def test_path_jpg(self):
+        self.assertEqual(giraffe.path_to_format("foo/bar/baz/hello.jpg"), "jpg")
+
+
 class TestGetImageArgs(unittest.TestCase):
     def test_no_params(self):
         self.assertEqual(
@@ -498,14 +534,34 @@ class TestImageRoute(FlaskTestCase):
         self.assertEqual(Image(blob=r.data).format, 'BMP')
 
     @mock.patch('giraffe.s3')
+    def test_masquerading_gif_converted_to_jpeg(self, s3):
+        """
+        Assuming that a user uploads a gif file but it is named "foo.jpg"
+        that gif can be resized but it won't resize correctly if we don't
+        convert the format of the file from gif to jpg.
+
+        """
+        obj = mock.Mock()
+        self.image = Image(width=160, height=120)
+        obj.content = self.image.make_blob("gif")
+        obj.headers = {'content-type': 'image/jpeg'}
+        s3.get.side_effect = [obj, make_httperror(404)]
+        r = self.app.get("/{}/masquerading_gif.jpg?w=120&h=120".format(self.bucket))
+        self.assertEqual(r.status_code, 200)
+        content_type = r.headers.get("content-type")
+        self.assertEqual(content_type, "image/jpeg")
+        self.assertEqual(Image(blob=r.data).format, 'JPEG')
+        self.assertEqual(Image(blob=r.data).size, (120, 120))
+
+    @mock.patch('giraffe.s3')
     def test_giant_image_resize(self, s3):
         obj = mock.Mock()
         self.image = Image(width=12402, height=8770)
         obj.content = self.image.make_blob("jpg")
-        obj.headers = {'content-type': 'image/jpg'}
+        obj.headers = {'content-type': 'image/jpeg'}
         s3.get.side_effect = [obj, make_httperror(404)]
         r = self.app.get("/{}/giant.jpg?w=120&h=120".format(self.bucket))
         self.assertEqual(r.status_code, 200)
         content_type = r.headers.get("content-type")
-        self.assertEqual(content_type, "image/jpg")
+        self.assertEqual(content_type, "image/jpeg")
         self.assertEqual(Image(blob=r.data).size, (120, 120))
