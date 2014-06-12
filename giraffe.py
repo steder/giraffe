@@ -471,12 +471,11 @@ def get_file_with_params_or_404(bucket, path, param_name, args):
         #print("bucket: {}, path {}, param_name {}, args {}".format(bucket, path, param_name, args))
         custom_key = get_object_or_none(bucket, param_name)
         if custom_key:
-            print("processed image already exists")
+            #print("processed image already exists")
             content_type = custom_key.headers.get('content-type', "image/jpeg")
             return custom_key.content, 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
         else:
-            print("processing image")
-
+            #print("processing image")
             width, height = get_image_size(key.content)
             if (width * height) > MAX_PIXELS:
                 width, height = min(args.get('w', width), width), min(args.get('h', height), height)
@@ -493,10 +492,10 @@ def get_file_with_params_or_404(bucket, path, param_name, args):
             #print("sizes: {} or {}, formats: {} or {}".format(size, img.size, desired_format, format))
             pipeline = build_pipeline(args)
 
-            print("pipeline:", pipeline, "fmt: %s, default_format: %s, desired_format: %s"%(fmt, default_format, desired_format))
+            #print("pipeline:", pipeline, "fmt: %s, default_format: %s, desired_format: %s"%(fmt, default_format, desired_format))
             if (size != img.size or desired_format != fmt or args.get('q', None) is not None
                 or len(pipeline) > 0):
-                print("NEW IMAGE")
+                #print("NEW IMAGE")
                 # if the desired size, format, quality, or if there are any pipeline operations
                 # to do like flipping the image then we should do something, otherwise we'll
                 # just return the image unchanged from s3.
@@ -509,7 +508,7 @@ def get_file_with_params_or_404(bucket, path, param_name, args):
                 temp_handle.seek(0)
                 return temp_handle.read(), 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
             else:
-                print("NOT NEW")
+                #print("NOT NEW")
                 return key.content, 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
     else:
         return "404: original file '{}' doesn't exist".format(path), 404
