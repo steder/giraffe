@@ -12,7 +12,7 @@ def get_hosts():
     hosts = []
     for i in ec2.get_only_instances():
         if i.tags.get("Name") == name_tag:
-            if i.private_ip_address:
+            if i.private_ip_address and i.state == 'running':
                 hosts.append("{}@{}".format(
                     "ubuntu", i.private_ip_address
                 ))
