@@ -179,19 +179,12 @@ def placeholder_it(filename, message=None):
     else:
         return "I don't know how to handle format .{} files".format(ext), 404
 
-    # print("{}, {}, {}, {}, {}".format(
-    #     basename, ext,
-    #     width, height,
-    #     content_type))
-
     if message:
         text = message
     else:
         text = '{}x{}'.format(width, height)
     min_font_ratio = width / (len(text) * 12.0)
     size = max(16 * (height / 100), 16 * min_font_ratio)
-
-    #print("size: %s", size)
 
     font = Font(path='fonts/Inconsolata-dz-Powerline.otf', size=size)
     c = Color(bg) if fmt == "jpg" else None
@@ -361,12 +354,17 @@ def process_image(img, operations):
                 img.transform(resize=size)
             else:
                 # this is my attempt at ResizeToFit from PILKit:
-                size = "{}x{}^".format(op.params['width'], op.params['height'])
-                img.transform(resize=size)
-                w_offset = max((img.width - op.params['width']) / 2, 0)
-                h_offset = max((img.height - op.params['height']) / 2, 0)
-                geometry = "{}+{}+{}".format(size, w_offset, h_offset)
-                img.transform(crop=geometry)
+                format = normalize_mimetype(img.format)
+                print("processing format:", format)
+                if format == "gif":
+                    img.resize(op.params['width'], op.params['height'])
+                else:
+                    size = "{}x{}^".format(op.params['width'], op.params['height'])
+                    img.transform(resize=size)
+                    w_offset = max((img.width - op.params['width']) / 2, 0)
+                    h_offset = max((img.height - op.params['height']) / 2, 0)
+                    geometry = "{}+{}+{}".format(size, w_offset, h_offset)
+                    img.transform(crop=geometry)
 
         if op.function == 'liquid':
             # this will raise a MissingDelegateError if you don't compile
