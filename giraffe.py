@@ -78,6 +78,18 @@ else:
         expiration_time=300,
     )
 
+# DEBUG Cache-Nothing REGION:
+class CacheNothing(object):
+    @staticmethod
+    def cache_on_arguments():
+        def deco(f):
+            def wrapper(*args, **kwargs):
+                return f(*args, **kwargs)
+            return wrapper
+        return deco
+
+region = CacheNothing()
+
 
 def get_image_size(bytes):
     img = PillowImage.open(BytesIO(bytes))
@@ -241,11 +253,13 @@ def image_route(bucket, path):
     except Exception:
         return "no extension specified", 404
 
+
+    force = request.args.get("force", False)
     args = get_image_args(request.args)
     params = args.values()
     if params:
         param_name = calculate_new_path(dirname, base, ext, args)
-        return get_file_with_params_or_404(bucket, path, param_name, args)
+        return get_file_with_params_or_404(bucket, path, param_name, args, force=force)
     else:
         return get_file_or_404(bucket, path)
 
@@ -465,18 +479,19 @@ def image_to_binary(img, fmt='JPEG'):
 
 
 @region.cache_on_arguments()
-def get_file_with_params_or_404(bucket, path, param_name, args):
+def get_file_with_params_or_404(bucket, path, param_name, args, force=False):
     key = get_object_or_none(bucket, path)
     if key:
-        #print("bucket: {}, path {}, param_name {}, args {}".format(bucket, path, param_name, args))
+        print("bucket: {}, path {}, param_name {}, args {}".format(bucket, path, param_name, args))
         custom_key = get_object_or_none(bucket, param_name)
-        if custom_key:
-            #print("processed image already exists")
+        if custom_key and not force:
+            print("processed image already exists")
             content_type = custom_key.headers.get('content-type', "image/jpeg")
             return custom_key.content, 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
         else:
-            #print("processing image")
+            print("processing image")
             width, height = get_image_size(key.content)
+            print("width x height", width, height)
             if (width * height) > MAX_PIXELS:
                 width, height = min(args.get('w', width), width), min(args.get('h', height), height)
                 return placeholder_it("{}x{}.jpg".format(width, height))
@@ -495,7 +510,7 @@ def get_file_with_params_or_404(bucket, path, param_name, args):
             #print("pipeline:", pipeline, "fmt: %s, default_format: %s, desired_format: %s"%(fmt, default_format, desired_format))
             if (size != img.size or desired_format != fmt or args.get('q', None) is not None
                 or len(pipeline) > 0):
-                #print("NEW IMAGE")
+                print("NEW IMAGE")
                 # if the desired size, format, quality, or if there are any pipeline operations
                 # to do like flipping the image then we should do something, otherwise we'll
                 # just return the image unchanged from s3.
@@ -508,7 +523,7 @@ def get_file_with_params_or_404(bucket, path, param_name, args):
                 temp_handle.seek(0)
                 return temp_handle.read(), 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
             else:
-                #print("NOT NEW")
+                print("NOT NEW")
                 return key.content, 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
     else:
         return "404: original file '{}' doesn't exist".format(path), 404
