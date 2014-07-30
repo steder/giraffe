@@ -51,7 +51,9 @@ s3 = None
 CACHE_DIR = os.environ.get("GIRAFFE_CACHE_DIR", 'giraffe')
 CACHE_CONTROL = "max-age=2592000"
 DEFAULT_QUALITY = 75
-MAX_PIXELS = 7680 * 4320 # 8K resolution is pretty damn big
+MAX_WIDTH = 7680
+MAX_HEIGHT = 4320
+MAX_PIXELS = MAX_WIDTH * MAX_HEIGHT # 8K resolution is pretty damn big
 
 if CACHE_URLS:
     # TODO: memcached fails to cache when the cached object
@@ -491,6 +493,8 @@ def get_file_with_params_or_404(bucket, path, param_name, args, force):
             return custom_key.content, 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
         else:
             width, height = get_image_size(key.content)
+            # If the original image is larger than 4K resolution we ain't resizing
+            # it as it would likely require too much memory / time
             if (width * height) > MAX_PIXELS:
                 width, height = min(args.get('w', width), width), min(args.get('h', height), height)
                 return placeholder_it("{}x{}.jpg".format(width, height))
@@ -499,7 +503,11 @@ def get_file_with_params_or_404(bucket, path, param_name, args, force):
 
             default_format = path_to_format(path)
 
-            size = min(args.get('w', img.size[0]), img.size[0]), min(args.get('h', img.size[1]), img.size[1])
+            size = args.get('w', img.size[0]), args.get('h', img.size[1])
+            if (size[0] * size[1]) > MAX_PIXELS:
+                return placeholder_it("{}x{}.jpg".format(640, 640), "TOO BIG")
+
+
             content_type = "image/{}".format(normalize_mimetype(fmt))
             desired_format = args.get('fm', default_format)
 
