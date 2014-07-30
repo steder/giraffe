@@ -78,17 +78,17 @@ else:
         expiration_time=300,
     )
 
-# DEBUG Cache-Nothing REGION:
-class CacheNothing(object):
-    @staticmethod
-    def cache_on_arguments():
-        def deco(f):
-            def wrapper(*args, **kwargs):
-                return f(*args, **kwargs)
-            return wrapper
-        return deco
+# # DEBUG Cache-Nothing REGION:
+# class CacheNothing(object):
+#     @staticmethod
+#     def cache_on_arguments():
+#         def deco(f):
+#             def wrapper(*args, **kwargs):
+#                 return f(*args, **kwargs)
+#             return wrapper
+#         return deco
 
-region = CacheNothing()
+# region = CacheNothing()
 
 
 def get_image_size(bytes):
