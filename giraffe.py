@@ -340,7 +340,6 @@ def get_file_or_404(bucket, path):
 
 
 def process_image(img, operations):
-    #print("compression quality:", img.compression_quality)
     for op in operations:
         #print("op:", op)
         if callable(op.function):
@@ -355,8 +354,8 @@ def process_image(img, operations):
             else:
                 # this is my attempt at ResizeToFit from PILKit:
                 format = normalize_mimetype(img.format)
-                print("processing format:", format)
-                if format == "gif":
+                print("processing format: {} (animation: {})".format(format, img.animation))
+                if img.animation:
                     img.resize(op.params['width'], op.params['height'])
                 else:
                     size = "{}x{}^".format(op.params['width'], op.params['height'])
