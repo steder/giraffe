@@ -251,7 +251,7 @@ def image_route(bucket, path):
     params = args.values()
     if params:
         param_name = calculate_new_path(dirname, base, ext, args)
-        return get_file_with_params_or_404(bucket, path, param_name, args, force=force)
+        return get_file_with_params_or_404(bucket, path, param_name, args, force)
     else:
         return get_file_or_404(bucket, path)
 
@@ -344,11 +344,19 @@ def process_image(img, operations):
             img = op.function(img, **op.params)
         if op.function == 'resize':
             if not op.params.get('width'):
-                size = "x{}".format(op.params['height'])
-                img.transform(resize=size)
+                if img.animation:
+                    width, height = img.size
+                    img.resize(width, op.params['height'])
+                else:
+                    size = "x{}".format(op.params['height'])
+                    img.transform(resize=size)
             elif not op.params.get('height'):
-                size = "{}".format(op.params['width'])
-                img.transform(resize=size)
+                if img.animation:
+                    width, height = img.size
+                    img.resize(op.params['width'], height)
+                else:
+                    size = "{}".format(op.params['width'])
+                    img.transform(resize=size)
             else:
                 # this is my attempt at ResizeToFit from PILKit:
                 format = normalize_mimetype(img.format)
@@ -362,7 +370,6 @@ def process_image(img, operations):
                     h_offset = max((img.height - op.params['height']) / 2, 0)
                     geometry = "{}+{}+{}".format(crop_size, w_offset, h_offset)
                     img.transform(crop=geometry)
-
 
         if op.function == 'liquid':
             # this will raise a MissingDelegateError if you don't compile
@@ -475,7 +482,7 @@ def image_to_binary(img, fmt='JPEG'):
 
 
 @region.cache_on_arguments()
-def get_file_with_params_or_404(bucket, path, param_name, args, force=False):
+def get_file_with_params_or_404(bucket, path, param_name, args, force):
     key = get_object_or_none(bucket, path)
     if key:
         custom_key = get_object_or_none(bucket, param_name)
