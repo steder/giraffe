@@ -354,8 +354,11 @@ class TestImageRoute(FlaskTestCase):
         params['w'] = 100
         params['h'] = 100
         giraffe.get_file_or_404.invalidate(self.bucket, "redbull.jpg")
-        giraffe.get_file_with_params_or_404.invalidate(self.bucket, "redbull.jpg", "{}/redbull_w100_h100.jpg".format(giraffe.CACHE_DIR),
-                                                       params)
+        giraffe.get_file_with_params_or_404.invalidate(self.bucket,
+                                                       "redbull.jpg",
+                                                       "{}/redbull_w100_h100.jpg".format(giraffe.CACHE_DIR),
+                                                       params,
+                                                       False)
 
     @mock.patch('giraffe.s3')
     def test_image_doesnt_exist(self, s3):

@@ -78,6 +78,18 @@ else:
         expiration_time=300,
     )
 
+# # DEBUG Cache-Nothing REGION:
+# class CacheNothing(object):
+#     @staticmethod
+#     def cache_on_arguments():
+#         def deco(f):
+#             def wrapper(*args, **kwargs):
+#                 return f(*args, **kwargs)
+#             return wrapper
+#         return deco
+
+# region = CacheNothing()
+
 
 def get_image_size(bytes):
     img = PillowImage.open(BytesIO(bytes))
@@ -152,7 +164,6 @@ def index():
 @app.route("/placeholders/<string:filename>")
 def placeholder_it(filename, message=None):
     bg = '#' + request.args.get('bg', 'fff')
-    #print('bg color:', bg)
     filename = filename.lower()
     basename, ext = os.path.splitext(filename)
     ext = ext.strip(".")
@@ -167,19 +178,12 @@ def placeholder_it(filename, message=None):
     else:
         return "I don't know how to handle format .{} files".format(ext), 404
 
-    # print("{}, {}, {}, {}, {}".format(
-    #     basename, ext,
-    #     width, height,
-    #     content_type))
-
     if message:
         text = message
     else:
         text = '{}x{}'.format(width, height)
     min_font_ratio = width / (len(text) * 12.0)
     size = max(16 * (height / 100), 16 * min_font_ratio)
-
-    #print("size: %s", size)
 
     font = Font(path='fonts/Inconsolata-dz-Powerline.otf', size=size)
     c = Color(bg) if fmt == "jpg" else None
@@ -241,11 +245,13 @@ def image_route(bucket, path):
     except Exception:
         return "no extension specified", 404
 
+
+    force = request.args.get("force", False)
     args = get_image_args(request.args)
     params = args.values()
     if params:
         param_name = calculate_new_path(dirname, base, ext, args)
-        return get_file_with_params_or_404(bucket, path, param_name, args)
+        return get_file_with_params_or_404(bucket, path, param_name, args, force)
     else:
         return get_file_or_404(bucket, path)
 
@@ -333,26 +339,37 @@ def get_file_or_404(bucket, path):
 
 
 def process_image(img, operations):
-    #print("compression quality:", img.compression_quality)
     for op in operations:
-        #print("op:", op)
         if callable(op.function):
             img = op.function(img, **op.params)
         if op.function == 'resize':
             if not op.params.get('width'):
-                size = "x{}".format(op.params['height'])
-                img.transform(resize=size)
+                if img.animation:
+                    width, height = img.size
+                    img.resize(width, op.params['height'])
+                else:
+                    size = "x{}".format(op.params['height'])
+                    img.transform(resize=size)
             elif not op.params.get('height'):
-                size = "{}".format(op.params['width'])
-                img.transform(resize=size)
+                if img.animation:
+                    width, height = img.size
+                    img.resize(op.params['width'], height)
+                else:
+                    size = "{}".format(op.params['width'])
+                    img.transform(resize=size)
             else:
                 # this is my attempt at ResizeToFit from PILKit:
-                size = "{}x{}^".format(op.params['width'], op.params['height'])
-                img.transform(resize=size)
-                w_offset = max((img.width - op.params['width']) / 2, 0)
-                h_offset = max((img.height - op.params['height']) / 2, 0)
-                geometry = "{}+{}+{}".format(size, w_offset, h_offset)
-                img.transform(crop=geometry)
+                format = normalize_mimetype(img.format)
+                if img.animation:
+                    img.resize(op.params['width'], op.params['height'])
+                else:
+                    size = "{}x{}^".format(op.params['width'], op.params['height'])
+                    crop_size = "{}x{}!".format(op.params['width'], op.params['height'])
+                    img.transform(resize=size)
+                    w_offset = max((img.width - op.params['width']) / 2, 0)
+                    h_offset = max((img.height - op.params['height']) / 2, 0)
+                    geometry = "{}+{}+{}".format(crop_size, w_offset, h_offset)
+                    img.transform(crop=geometry)
 
         if op.function == 'liquid':
             # this will raise a MissingDelegateError if you don't compile
@@ -465,17 +482,14 @@ def image_to_binary(img, fmt='JPEG'):
 
 
 @region.cache_on_arguments()
-def get_file_with_params_or_404(bucket, path, param_name, args):
+def get_file_with_params_or_404(bucket, path, param_name, args, force):
     key = get_object_or_none(bucket, path)
     if key:
-        #print("bucket: {}, path {}, param_name {}, args {}".format(bucket, path, param_name, args))
         custom_key = get_object_or_none(bucket, param_name)
-        if custom_key:
-            #print("processed image already exists")
+        if custom_key and not force:
             content_type = custom_key.headers.get('content-type', "image/jpeg")
             return custom_key.content, 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
         else:
-            #print("processing image")
             width, height = get_image_size(key.content)
             if (width * height) > MAX_PIXELS:
                 width, height = min(args.get('w', width), width), min(args.get('h', height), height)
@@ -489,13 +503,10 @@ def get_file_with_params_or_404(bucket, path, param_name, args):
             content_type = "image/{}".format(normalize_mimetype(fmt))
             desired_format = args.get('fm', default_format)
 
-            #print("sizes: {} or {}, formats: {} or {}".format(size, img.size, desired_format, format))
             pipeline = build_pipeline(args)
 
-            #print("pipeline:", pipeline, "fmt: %s, default_format: %s, desired_format: %s"%(fmt, default_format, desired_format))
             if (size != img.size or desired_format != fmt or args.get('q', None) is not None
                 or len(pipeline) > 0):
-                #print("NEW IMAGE")
                 # if the desired size, format, quality, or if there are any pipeline operations
                 # to do like flipping the image then we should do something, otherwise we'll
                 # just return the image unchanged from s3.
@@ -508,7 +519,6 @@ def get_file_with_params_or_404(bucket, path, param_name, args):
                 temp_handle.seek(0)
                 return temp_handle.read(), 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
             else:
-                #print("NOT NEW")
                 return key.content, 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
     else:
         return "404: original file '{}' doesn't exist".format(path), 404
