@@ -359,11 +359,16 @@ def process_image(img, operations):
                     img.resize(op.params['width'], op.params['height'])
                 else:
                     size = "{}x{}^".format(op.params['width'], op.params['height'])
+                    crop_size = "{}x{}!".format(op.params['width'], op.params['height'])
+                    print("size: {}".format(size))
                     img.transform(resize=size)
+                    print("New image width {}, height {}".format(img.width, img.height))
                     w_offset = max((img.width - op.params['width']) / 2, 0)
                     h_offset = max((img.height - op.params['height']) / 2, 0)
-                    geometry = "{}+{}+{}".format(size, w_offset, h_offset)
+                    geometry = "{}+{}+{}".format(crop_size, w_offset, h_offset)
+                    print("geometry: {}".format(geometry))
                     img.transform(crop=geometry)
+
 
         if op.function == 'liquid':
             # this will raise a MissingDelegateError if you don't compile
