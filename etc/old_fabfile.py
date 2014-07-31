@@ -35,6 +35,12 @@ def clean_tmp():
 
 
 @task
+def restart():
+    run('sudo service giraffe restart')
+    run('sudo service giraffe status')
+
+
+@task
 def deploy():
     run('echo "deploying..."')
     run('uname -s')
