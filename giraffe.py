@@ -29,6 +29,7 @@ from PIL import Image as PillowImage
 from requests.exceptions import HTTPError
 import requests
 import tinys3
+import wand
 from wand.color import Color
 from wand.font import Font
 from wand.image import Image
@@ -482,6 +483,15 @@ def image_to_buffer(img, fmt='JPEG', compress=False):
 def image_to_binary(img, fmt='JPEG'):
     return img.make_blob(fmt)
 
+def stubbornly_load_image(content, headers, path):
+    try:
+        return Image(blob=BytesIO(content))
+    except wand.exceptions.MissingDelegateError as orig_e:
+        try:
+            return Image(blob=BytesIO(content), format='ico')
+        except wand.exceptions.MissingDelegateError:
+            raise orig_e
+
 
 @region.cache_on_arguments()
 def get_file_with_params_or_404(bucket, path, param_name, args, force):
@@ -498,7 +508,7 @@ def get_file_with_params_or_404(bucket, path, param_name, args, force):
             if (width * height) > MAX_PIXELS:
                 width, height = min(args.get('w', width), width), min(args.get('h', height), height)
                 return placeholder_it("{}x{}.jpg".format(width, height))
-            img = Image(blob=BytesIO(key.content))
+            img = stubbornly_load_image(key.content, key.headers, path)
             fmt = img.format.lower()
 
             default_format = path_to_format(path)
