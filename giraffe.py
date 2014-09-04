@@ -497,8 +497,12 @@ def stubbornly_load_image(content, headers, path):
 def get_file_with_params_or_404(bucket, path, param_name, args, force):
     key = get_object_or_none(bucket, path)
     if key:
-        custom_key = get_object_or_none(bucket, param_name)
-        if custom_key and not force:
+        if force:
+            custom_key = None
+        else:
+            custom_key = get_object_or_none(bucket, param_name)
+
+        if custom_key:
             content_type = custom_key.headers.get('content-type', "image/jpeg")
             return custom_key.content, 200, {"Content-Type": content_type, "Cache-Control": CACHE_CONTROL}
         else:
