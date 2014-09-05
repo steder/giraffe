@@ -568,3 +568,29 @@ class TestImageRoute(FlaskTestCase):
         content_type = r.headers.get("content-type")
         self.assertEqual(content_type, "image/jpeg")
         self.assertEqual(Image(blob=r.data).size, (120, 120))
+
+    @mock.patch('giraffe.s3')
+    def test_ico_masquerading_as_jpg(self, s3):
+        obj = mock.Mock()
+        image = Image(width=16, height=16)
+        obj.content = image.make_blob('ico')
+        obj.headers = {'content-type': 'image/jpeg'} # this is what S3 tells us =(
+        s3.get.side_effect = [obj, make_httperror(404)]
+        r = self.app.get("/{}/giant.jpg?w=64&h=64".format(self.bucket))
+        self.assertEqual(r.status_code, 200)
+        content_type = r.headers.get("content-type")
+        self.assertEqual(content_type, "image/jpeg")
+        self.assertEqual(Image(blob=r.data, format='jpeg').size, (64, 64))
+
+    @mock.patch('giraffe.s3')
+    def test_ico_masquerading_as_jpg_big(self, s3):
+        obj = mock.Mock()
+        image = Image(width=16, height=16)
+        obj.content = image.make_blob('ico')
+        obj.headers = {'content-type': 'image/jpeg'} # this is what S3 tells us =(
+        s3.get.side_effect = [obj, make_httperror(404)]
+        r = self.app.get("/{}/giant.jpg?w=400&h=400".format(self.bucket))
+        self.assertEqual(r.status_code, 200)
+        content_type = r.headers.get("content-type")
+        self.assertEqual(content_type, "image/jpeg")
+        self.assertEqual(Image(blob=r.data, format='jpeg').size, (400, 400))
