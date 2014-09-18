@@ -302,6 +302,8 @@ def get_image_args(args):
     rot = positive_int_or_none(args.get("rot"))
     fm = args.get('fm')
     q = positive_int_or_none(args.get('q'))
+    bg = args.get('bg')
+    overlay = args.get('overlay')
 
     image_args = OrderedDict()
     if w:
@@ -318,6 +320,11 @@ def get_image_args(args):
         image_args['fm'] = fm
     if q:
         image_args['q'] = q
+    if overlay:
+        image_args['overlay'] = overlay
+    if bg:
+        image_args['bg'] = bg
+
     return image_args
 
 
@@ -346,6 +353,32 @@ def process_image(img, operations):
     for op in operations:
         if callable(op.function):
             img = op.function(img, **op.params)
+        if op.function == 'overlay':
+            print("get overlay params:", op.params)
+            bucket = op.params['bucket']
+            path = op.params['path']
+            key = get_object_or_none(bucket, path)
+            if key:
+                overlay_img = stubbornly_load_image(key.content, None, None)
+                width, height = get_image_size(key.content)
+                # size = "{}x{}^".format(width, height)
+                # crop_size = "{}x{}!".format(width, height)
+                # img.transform(resize=size)
+                # w_offset = max((img.width - width) / 2, 0)
+                # h_offset = max((img.height - height) / 2, 0)
+                # geometry = "{}+{}+{}".format(crop_size, w_offset, h_offset)
+                # img.transform(crop=geometry)
+                img.resize(width, height)
+                bg = op.params['bg']
+                c = Color('#' + bg)
+                background = Image(width=width, height=height, background=c)
+                background.composite(img, 0, 0)
+                img = background
+                img.composite(overlay_img, 0, 0)
+                #img.composite(background, 0, 0)
+            else:
+                raise Exception("Couldn't find an overlay file for bucket '{}' and path '{}'".format(bucket, path))
+
         if op.function == 'resize':
             if not op.params.get('width'):
                 if img.animation:
@@ -374,7 +407,6 @@ def process_image(img, operations):
                     h_offset = max((img.height - op.params['height']) / 2, 0)
                     geometry = "{}+{}+{}".format(crop_size, w_offset, h_offset)
                     img.transform(crop=geometry)
-
         if op.function == 'liquid':
             # this will raise a MissingDelegateError if you don't compile
             # imagemagick with the `--with-lqr` option.
@@ -387,6 +419,7 @@ def process_image(img, operations):
             img.format = op.params['format']
         if op.function == 'rotate':
             img.rotate(op.params['degrees'])
+
     return img
 
 
@@ -465,6 +498,18 @@ def build_pipeline(params):
         pipeline.append(ImageOp('format', {'format': 'png'}))
     if fm == 'jpg' or fm == 'jpeg':
         pipeline.append(ImageOp('format', {'format': 'jpeg'}))
+
+    overlay = params.get('overlay', None)
+    if overlay:
+        bg = params.get('bg', '0FFF')
+        segments = overlay.split("/")
+        bucket = segments[1]
+        path = "/overlays/" + "/".join(segments[2:])
+
+        pipeline.append(ImageOp('overlay', {'overlay': overlay,
+                                            'bucket': bucket,
+                                            'path': path,
+                                            'bg': bg}))
 
     return pipeline
 
