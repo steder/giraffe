@@ -25,6 +25,7 @@ from dogpile.cache import make_region
 from dogpile.cache.util import sha1_mangle_key
 from flask import Flask
 from flask import request
+from flask import render_template
 from PIL import Image as PillowImage
 from requests.exceptions import HTTPError
 import requests
@@ -161,7 +162,7 @@ def path_to_format(path):
 
 @app.route("/")
 def index():
-    return "Hello World"
+    return render_template("index.html")
 
 
 @app.route("/placeholders/<string:filename>")
