@@ -349,68 +349,67 @@ def get_file_or_404(bucket, path):
         return "404: file '{}' doesn't exist".format(path), 404
 
 
+def overlay_that(img, bucket=None, path=None, overlay=None, bg=None):
+    print("get overlay params:", bucket, path, overlay, bg)
+    key = get_object_or_none(bucket, path)
+    if key:
+        image_orientation = 'square'
+        overlay_orientation = 'square'
+
+        if img.width > img.height:
+            image_orientation = 'landscape'
+        elif img.width < img.height:
+            image_orientation = 'portrait'
+
+        overlay_img = stubbornly_load_image(key.content, None, None)
+
+        if overlay_img.width > overlay_img.height:
+            overlay_orientation = 'landscape'
+        elif overlay_img.width < overlay_img.height:
+            overlay_orientation = 'portrait'
+
+        overlay_width, overlay_height = get_image_size(key.content)
+        print("overlay size:", overlay_width, overlay_height)
+        #width, height = 600, 950
+
+        # step one, size the art:
+        if overlay_orientation == image_orientation:
+            # if the orientations are the same then just shrink the img
+            # to a third the size of the overlay:
+            width, height = overlay_width // 3, overlay_height // 3
+        else:
+            # otherwise if the overlay is landscape and the source
+            # image is portrait than keep image portrait
+            # by flipping the overlays width and height
+            # before scaling
+            width, height = overlay_height // 3, overlay_width // 3
+
+        size = "{}x{}^".format(width, height)
+        crop_size = "{}x{}!".format(width, height)
+        img.transform(resize=size)
+        w_offset = max((img.width - width) / 2, 0)
+        h_offset = max((img.height - height) / 2, 0)
+        geometry = "{}+{}+{}".format(crop_size, w_offset, h_offset)
+        img.transform(crop=geometry)
+
+        # position the art over the canvas and/or optionally add bg color:
+        # TODO: handle missing bg color:
+        c = Color('#' + bg)
+        background = Image(width=overlay_width, height=overlay_height, background=c)
+        background.composite(img, ((overlay_width // 2) - (width // 2)), ((overlay_height // 2) - (height // 2)))
+        img = background
+
+        # Overlay canvas:
+        img.composite(overlay_img, 0, 0)
+    else:
+        raise Exception("Couldn't find an overlay file for bucket '{}' and path '{}'".format(bucket, path))
+    return img
+
+
 def process_image(img, operations):
     for op in operations:
         if callable(op.function):
             img = op.function(img, **op.params)
-        if op.function == 'overlay':
-            print("get overlay params:", op.params)
-            bucket = op.params['bucket']
-            path = op.params['path']
-            key = get_object_or_none(bucket, path)
-            if key:
-                image_orientation = 'square'
-                overlay_orientation = 'square'
-
-                if img.width > img.height:
-                    image_orientation = 'landscape'
-                elif img.width < img.height:
-                    image_orientation = 'portrait'
-
-                overlay_img = stubbornly_load_image(key.content, None, None)
-
-                if overlay_img.width > overlay_img.height:
-                    overlay_orientation = 'landscape'
-                elif overlay_img.width < overlay_img.height:
-                    overlay_orientation = 'portrait'
-
-                overlay_width, overlay_height = get_image_size(key.content)
-                print("overlay size:", overlay_width, overlay_height)
-                #width, height = 600, 950
-
-                # step one, size the art:
-                if overlay_orientation == image_orientation:
-                    # if the orientations are the same then just shrink the img
-                    # to a third the size of the overlay:
-                    width, height = overlay_width // 3, overlay_height // 3
-                else:
-                    # otherwise if the overlay is landscape and the source
-                    # image is portrait than keep image portrait
-                    # by flipping the overlays width and height
-                    # before scaling
-                    width, height = overlay_height // 3, overlay_width // 3
-
-                size = "{}x{}^".format(width, height)
-                crop_size = "{}x{}!".format(width, height)
-                img.transform(resize=size)
-                w_offset = max((img.width - width) / 2, 0)
-                h_offset = max((img.height - height) / 2, 0)
-                geometry = "{}+{}+{}".format(crop_size, w_offset, h_offset)
-                img.transform(crop=geometry)
-
-                # position the art over the canvas and/or optionally add bg color:
-                # TODO: handle missing bg color:
-                bg = op.params['bg']
-                c = Color('#' + bg)
-                background = Image(width=overlay_width, height=overlay_height, background=c)
-                background.composite(img, ((overlay_width // 2) - (width // 2)), ((overlay_height // 2) - (height // 2)))
-                img = background
-
-                # Overlay canvas:
-                img.composite(overlay_img, 0, 0)
-            else:
-                raise Exception("Couldn't find an overlay file for bucket '{}' and path '{}'".format(bucket, path))
-
         if op.function == 'resize':
             if not op.params.get('width'):
                 if img.animation:
@@ -538,10 +537,10 @@ def build_pipeline(params):
         bucket = segments[1]
         path = "/" + "/".join(segments[2:])
 
-        pipeline.append(ImageOp('overlay', {'overlay': overlay,
-                                            'bucket': bucket,
-                                            'path': path,
-                                            'bg': bg}))
+        pipeline.append(ImageOp(overlay_that, {'overlay': overlay,
+                                               'bucket': bucket,
+                                               'path': path,
+                                               'bg': bg}))
 
     return pipeline
 
