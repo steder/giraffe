@@ -504,7 +504,7 @@ def build_pipeline(params):
         bg = params.get('bg', '0FFF')
         segments = overlay.split("/")
         bucket = segments[1]
-        path = "/overlays/" + "/".join(segments[2:])
+        path = "/" + "/".join(segments[2:])
 
         pipeline.append(ImageOp('overlay', {'overlay': overlay,
                                             'bucket': bucket,

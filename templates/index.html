@@ -4,32 +4,95 @@
 <div>
 {% raw %}
 <div class="row">
-<form class="navbar-form navbar-left" role="search">
-  <div class="form-group">
-    <label>Original</label>
-    <input ng-model="art" type="text" size="80" class="form-control" placeholder="Art Path" ng-init="art='/giraffe.threadless.com/art.png'">
-  </div>
-  <div class="form-group">
-    <label>Overlay</label>
-    <input ng-model="overlay" type="text" size="80" class="form-control" placeholder="Overlay Path" ng-init="overlay='/giraffe.threadless.com/tshirts/overlay.png'">
-  </div>
-  <div class="form-group">
-    <label>BG Color</label>
-    <input ng-model="bg" type="text" class="form-control" placeholder="BG Color Hex" ng-init="bg='451D74'">
-  </div>
-  <!-- <button type="submit" class="btn btn-default">Submit</button> -->
-</form>
-</div>
-<div class="row">
-  <div class="col-sm-6 col-md-4">
-    <div class="thumbnail">
-      <img ng-src="{{art}}?overlay={{overlay}}&bg={{bg}}&force=1" alt="an image!"/>
-      <div class="caption">
-        <h3>Composited Image</h3>
+
+  <ul id="tabs" class="nav nav-tabs" data-tabs="tabs">
+    <li class="active"><a href="#shirt_preview" role="tab" data-toggle="tab">Shirt Preview</a></li>
+    <li><a href="#iphone_preview" role="tab" data-toggle="tab">Iphone Preview</a></li>
+  </ul>
+
+  <div id="ui-tabs" class="tab-content">
+    <div class="col-md-6 tab-pane active" id="shirt_preview">
+      <form class="navbar-form navbar-left" role="search">
+        <div class="form-group">
+          <label>Original</label>
+          <input ng-model="shirt_art" type="text" size="80" class="form-control" placeholder="Art Path" ng-init="shirt_art='/giraffe.threadless.com/art.png'">
+        </div>
+        <div class="form-group">
+          <label>Overlay</label>
+          <input ng-model="shirt_overlay" type="text" size="80" class="form-control" placeholder="Overlay Path" ng-init="shirt_overlay='/giraffe.threadless.com/overlays/tshirts/overlay.png'">
+        </div>
+        <div class="form-group">
+          <label>BG Color</label>
+          <input ng-model="bg" type="text" class="form-control" placeholder="BG Color Hex" ng-init="bg='451D74'">
+        </div>
+        <!-- <button type="submit" class="btn btn-default">Submit</button> -->
+      </form>
+      <div class="row">
+        <div class="col-sm-6 col-md-4">
+          <div class="thumbnail">
+            <h3>Shirt Preview</h3>
+            <img ng-src="{{shirt_art}}?overlay={{shirt_overlay}}&bg={{bg}}&force=1" alt="an image!"/>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 tab-pane" id="iphone_preview">
+      <form class="navbar-form navbar-left" role="search">
+        <div class="form-group">
+          <label>Original</label>
+          <input ng-model="iphone_art" type="text" size="80" class="form-control" placeholder="Art Path" ng-init="iphone_art='/giraffe.threadless.com/art.png'">
+        </div>
+        <div class="form-group">
+          <label>Overlay</label>
+          <input ng-model="iphone_overlay" type="text" size="80" class="form-control" placeholder="Overlay Path" ng-init="iphone_overlay='/giraffe.threadless.com/overlays/iphones/iphone6-barelythere.png'">
+        </div>
+        <div class="form-group">
+          <label>BG Color</label>
+          <input ng-model="bg" type="text" class="form-control" placeholder="BG Color Hex" ng-init="bg='451D74'">
+        </div>
+        <!-- <button type="submit" class="btn btn-default">Submit</button> -->
+      </form>
+      <div class="row">
+        <div class="col-sm-6 col-md-4">
+          <div class="thumbnail">
+            <h3>Iphone Preview</h3>
+            <img ng-src="{{iphone_art}}?overlay={{iphone_overlay}}&bg={{bg}}&force=1" alt="an image!"/>
+          </div>
+        </div>
       </div>
     </div>
   </div>
-</div>
+
+<!-- <form class="navbar-form navbar-left" role="search"> -->
+<!--   <div class="form-group"> -->
+<!--     <label>Original</label> -->
+<!--     <input ng-model="iphone_art" type="text" size="80" class="form-control" placeholder="Art Path" ng-init="iphone_art='/giraffe.threadless.com/art.png'"> -->
+<!--   </div> -->
+<!--   <div class="form-group"> -->
+<!--     <label>Overlay</label> -->
+<!--     <input ng-model="iphone_overlay" type="text" size="80" class="form-control" placeholder="Overlay Path" ng-init="iphone_overlay='/giraffe.threadless.com/overlays/iphones/iphone6-barelythere.png'"> -->
+<!--   </div> -->
+<!--   <div class="form-group"> -->
+<!--     <label>BG Color</label> -->
+<!--     <input ng-model="bg" type="text" class="form-control" placeholder="BG Color Hex" ng-init="bg='451D74'"> -->
+<!--   </div> -->
+<!--   <\!-- <button type="submit" class="btn btn-default">Submit</button> -\-> -->
+<!-- </form> -->
+<!-- </div> -->
+<!-- <div class="row"> -->
+<!--   <div class="col-sm-6 col-md-4"> -->
+<!--     <div class="thumbnail"> -->
+<!--       <h3>iPhone Preview</h3> -->
+<!--       <img ng-src="{{iphone_art}}?overlay={{iphone_overlay}}&bg={{bg}}&force=1" alt="an image!"/> -->
+<!--     </div> -->
+<!--   </div> -->
+<!-- </div> -->
+
 {% endraw %}
 </div>
+<script type="text/javascript">
+    jQuery(document).ready(function ($) {
+        $('#tabs').tab();
+    });
+</script>
 {% endblock %}
