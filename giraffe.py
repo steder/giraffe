@@ -380,8 +380,14 @@ def process_image(img, operations):
 
                 # step one, size the art:
                 if overlay_orientation == image_orientation:
+                    # if the orientations are the same then just shrink the img
+                    # to a third the size of the overlay:
                     width, height = overlay_width // 3, overlay_height // 3
                 else:
+                    # otherwise if the overlay is landscape and the source
+                    # image is portrait than keep image portrait
+                    # by flipping the overlays width and height
+                    # before scaling
                     width, height = overlay_height // 3, overlay_width // 3
 
                 size = "{}x{}^".format(width, height)
