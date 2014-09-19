@@ -359,23 +359,49 @@ def process_image(img, operations):
             path = op.params['path']
             key = get_object_or_none(bucket, path)
             if key:
+                image_orientation = 'square'
+                overlay_orientation = 'square'
+
+                if img.width > img.height:
+                    image_orientation = 'landscape'
+                elif img.width < img.height:
+                    image_orientation = 'portrait'
+
                 overlay_img = stubbornly_load_image(key.content, None, None)
-                width, height = get_image_size(key.content)
-                # size = "{}x{}^".format(width, height)
-                # crop_size = "{}x{}!".format(width, height)
-                # img.transform(resize=size)
-                # w_offset = max((img.width - width) / 2, 0)
-                # h_offset = max((img.height - height) / 2, 0)
-                # geometry = "{}+{}+{}".format(crop_size, w_offset, h_offset)
-                # img.transform(crop=geometry)
-                img.resize(width, height)
+
+                if overlay_img.width > overlay_img.height:
+                    overlay_orientation = 'landscape'
+                elif overlay_img.width < overlay_img.height:
+                    overlay_orientation = 'portrait'
+
+                overlay_width, overlay_height = get_image_size(key.content)
+                print("overlay size:", overlay_width, overlay_height)
+                #width, height = 600, 950
+
+                # step one, size the art:
+                if overlay_orientation == image_orientation:
+                    width, height = overlay_width // 3, overlay_height // 3
+                else:
+                    width, height = overlay_height // 3, overlay_width // 3
+
+                size = "{}x{}^".format(width, height)
+                crop_size = "{}x{}!".format(width, height)
+                img.transform(resize=size)
+                w_offset = max((img.width - width) / 2, 0)
+                h_offset = max((img.height - height) / 2, 0)
+                geometry = "{}+{}+{}".format(crop_size, w_offset, h_offset)
+                img.transform(crop=geometry)
+
+                # position the art over the canvas and/or optionally add bg color:
+                # TODO: handle missing bg color:
                 bg = op.params['bg']
                 c = Color('#' + bg)
-                background = Image(width=width, height=height, background=c)
-                background.composite(img, 0, 0)
+                background = Image(width=overlay_width, height=overlay_height, background=c)
+                background.composite(img, ((overlay_width // 2) - (width // 2)), ((overlay_height // 2) - (height // 2)))
                 img = background
+
+                # Overlay canvas:
                 img.composite(overlay_img, 0, 0)
-                #img.composite(background, 0, 0)
             else:
                 raise Exception("Couldn't find an overlay file for bucket '{}' and path '{}'".format(bucket, path))
 
