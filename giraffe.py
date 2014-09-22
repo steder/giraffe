@@ -444,7 +444,6 @@ def process_image(img, operations):
                     img.transform(resize=size)
             else:
                 # this is my attempt at ResizeToFit from PILKit:
-                format = normalize_mimetype(img.format)
                 if img.animation:
                     img.resize(op.params['width'], op.params['height'])
                 else:
