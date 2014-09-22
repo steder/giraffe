@@ -633,6 +633,18 @@ class TestOverlayRoutes(FlaskTestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(Image(blob=r.data).size, (1920, 1080))
 
+    @mock.patch('giraffe.s3')
+    def test_image_overlay_no_bg_color(self, s3):
+        # background isn't required, if your original image doesn't include transparency
+        # then you don't need the background color
+        obj = mock.Mock()
+        obj.content = self.image.make_blob("jpg")
+        # s3 requests for 1. original image, 2. generated image with overlay, 3. overlay
+        s3.get.side_effect = [obj, make_httperror(404), obj]
+        r = self.app.get("/{b}/art.jpg?overlay=/{b}/tshirts/overlay.png".format(b=self.bucket))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(Image(blob=r.data).size, (1920, 1080))
+
     @mock.patch('giraffe.requests')
     @mock.patch('giraffe.s3')
     def test_image_overlay_absolute_url(self, s3, requests):
