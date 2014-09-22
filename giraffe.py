@@ -28,7 +28,7 @@ from flask import Flask
 from flask import request
 from flask import render_template
 from PIL import Image as PillowImage
-from requests.exceptions import HTTPError
+from requests.exceptions import HTTPError, ConnectionError
 import requests
 import tinys3
 import wand
@@ -361,7 +361,13 @@ def overlay_that(img, bucket=None, path=None, overlay=None, bg=None):
         key = get_object_or_none(bucket, path)
         overlay_content = key.content
     else:
-        overlay_content = None
+        try:
+            resp = requests.get(overlay)
+        except (ConnectionError) as e:
+            print(e)
+            raise
+        else:
+            overlay_content = resp.content
 
     print("Overlay content:", overlay_content)
 
