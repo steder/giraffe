@@ -369,8 +369,6 @@ def overlay_that(img, bucket=None, path=None, overlay=None, bg=None):
         else:
             overlay_content = resp.content
 
-    print("Overlay content:", overlay_content)
-
     if overlay_content:
         image_orientation = 'square'
         overlay_orientation = 'square'
@@ -387,7 +385,7 @@ def overlay_that(img, bucket=None, path=None, overlay=None, bg=None):
         elif overlay_img.width < overlay_img.height:
             overlay_orientation = 'portrait'
 
-        overlay_width, overlay_height = get_image_size(overlay_content)
+        overlay_width, overlay_height = overlay_img.width, overlay_img.height
         print("overlay size:", overlay_width, overlay_height)
         #width, height = 600, 950
 
