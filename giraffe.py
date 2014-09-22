@@ -20,7 +20,6 @@ import hashlib
 import hmac
 import os
 import re
-import urllib
 
 from dogpile.cache import make_region
 from dogpile.cache.util import sha1_mangle_key
@@ -31,6 +30,7 @@ from PIL import Image as PillowImage
 from requests.exceptions import HTTPError, ConnectionError
 import requests
 import six
+from six.moves.urllib import parse
 import tinys3
 import wand
 from wand.color import Color
@@ -270,7 +270,7 @@ def calculate_new_path(dirname, base, ext, args):
         if val is not None:
             if isinstance(val, six.string_types):
                 # escape special characters in URLs for overlay / mask arguments
-                val = urllib.quote_plus(val)
+                val = parse.quote_plus(val)
             stuff.append("{}{}".format(key, val))
 
     fmt = args.get('fm')
