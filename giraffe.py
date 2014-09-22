@@ -30,6 +30,7 @@ from flask import render_template
 from PIL import Image as PillowImage
 from requests.exceptions import HTTPError, ConnectionError
 import requests
+import six
 import tinys3
 import wand
 from wand.color import Color
@@ -267,7 +268,7 @@ def calculate_new_path(dirname, base, ext, args):
         if key == "fm":
             continue
         if val is not None:
-            if isinstance(val, basestring):
+            if isinstance(val, six.string_types):
                 # escape special characters in URLs for overlay / mask arguments
                 val = urllib.quote_plus(val)
             stuff.append("{}{}".format(key, val))
