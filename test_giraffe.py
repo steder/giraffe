@@ -338,7 +338,6 @@ class TestIndexRoute(FlaskTestCase):
     def test_index(self):
         r = self.app.get("/")
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.data, b"Hello World")
 
 
 class TestImageRoute(FlaskTestCase):
@@ -595,29 +594,50 @@ class TestImageRoute(FlaskTestCase):
         self.assertEqual(content_type, "image/jpeg")
         self.assertEqual(Image(blob=r.data, format='jpeg').size, (400, 400))
 
+
+class TestOverlayRoutes(FlaskTestCase):
+    bucket = "wtf"
+
+    def setUp(self):
+        super(TestOverlayRoutes, self).setUp()
+        with Color('red') as bg:
+            self.image = Image(width=1920, height=1080, background=bg)
+
+        # let's clear the cache
+        params = OrderedDict()
+        params['w'] = 100
+        params['h'] = 100
+        giraffe.get_file_or_404.invalidate(self.bucket, "art.png")
+        giraffe.get_file_with_params_or_404.invalidate(self.bucket,
+                                                       "art.png",
+                                                       "{}/art_w100_h100.jpg".format(giraffe.CACHE_DIR),
+                                                       params,
+                                                       False)
+
     @mock.patch('giraffe.s3')
     def test_image_overlay_relative_url(self, s3):
         obj = mock.Mock()
-        obj.content = self.image.make_blob("jpeg")
-        s3.get.side_effect = [obj, make_httperror(404)]
-        r = self.app.get("/{}/art.png?overlay=tshirts/overlay.png&bg=451D74".format(self.bucket))
+        obj.content = self.image.make_blob("png")
+        # s3 requests for 1. original image, 2. generated image with overlay, 3. overlay
+        s3.get.side_effect = [obj, make_httperror(404), obj]
+        r = self.app.get("/{b}/art.png?overlay=/{b}/tshirts/overlay.png&bg=451D74".format(b=self.bucket))
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(Image(blob=r.data).size, (100, 100))
+        self.assertEqual(Image(blob=r.data).size, (1920, 1080))
 
-    @mock.patch('giraffe.s3')
-    def test_image_overlay_absolute_url(self, s3):
-        obj = mock.Mock()
-        obj.content = self.image.make_blob("jpeg")
-        s3.get.side_effect = [obj, make_httperror(404)]
-        r = self.app.get("/{}/art.png?overlay=https://cloudfront.whatever.org/tshirts/overlay.png&bg=451D74".format(self.bucket))
-        self.assertEqual(r.status_code, 200)
-        self.assertEqual(Image(blob=r.data).size, (100, 100))
+    # @mock.patch('giraffe.s3')
+    # def test_image_overlay_absolute_url(self, s3):
+    #     obj = mock.Mock()
+    #     obj.content = self.image.make_blob("png")
+    #     s3.get.side_effect = [obj, make_httperror(404), obj]
+    #     r = self.app.get("/{}/art.png?overlay=https://cloudfront.whatever.org/tshirts/overlay.png&bg=451D74".format(self.bucket))
+    #     self.assertEqual(r.status_code, 200)
+    #     self.assertEqual(Image(blob=r.data).size, (1920, 1080))
 
     @mock.patch('giraffe.s3')
     def test_image_overlay_resize(self, s3):
         obj = mock.Mock()
-        obj.content = self.image.make_blob("jpeg")
-        s3.get.side_effect = [obj, make_httperror(404)]
+        obj.content = self.image.make_blob("png")
+        s3.get.side_effect = [obj, make_httperror(404), obj]
         r = self.app.get("/{}/art.png?overlay=tshirts/overlay.png&bg=451D74&w=100&h=100".format(self.bucket))
         self.assertEqual(r.status_code, 200)
         self.assertEqual(Image(blob=r.data).size, (100, 100))

@@ -278,6 +278,7 @@ def calculate_new_path(dirname, base, ext, args):
     filename_with_args = "_".join(str(x) for x in stuff) + "." + ext
     # if we enable compression we may want to modify the filename here to include *.gz
     param_name = os.path.join(CACHE_DIR, dirname, filename_with_args)
+    print("param name:", param_name)
     return param_name
 
 
@@ -352,6 +353,8 @@ def get_file_or_404(bucket, path):
 def overlay_that(img, bucket=None, path=None, overlay=None, bg=None):
     print("get overlay params:", bucket, path, overlay, bg)
     key = get_object_or_none(bucket, path)
+    overlay_content = key.content
+
     if key:
         image_orientation = 'square'
         overlay_orientation = 'square'
@@ -361,14 +364,14 @@ def overlay_that(img, bucket=None, path=None, overlay=None, bg=None):
         elif img.width < img.height:
             image_orientation = 'portrait'
 
-        overlay_img = stubbornly_load_image(key.content, None, None)
+        overlay_img = stubbornly_load_image(overlay_content, None, None)
 
         if overlay_img.width > overlay_img.height:
             overlay_orientation = 'landscape'
         elif overlay_img.width < overlay_img.height:
             overlay_orientation = 'portrait'
 
-        overlay_width, overlay_height = get_image_size(key.content)
+        overlay_width, overlay_height = get_image_size(overlay_content)
         print("overlay size:", overlay_width, overlay_height)
         #width, height = 600, 950
 
@@ -537,11 +540,14 @@ def build_pipeline(params):
         bucket = segments[1]
         path = "/" + "/".join(segments[2:])
 
-        pipeline.append(ImageOp(overlay_that, {'overlay': overlay,
+        # order matters, I think we want to do this first, then resize or flip:
+        # TODO: consider allowing the order arguments are specified on the URL
+        # influence the order in which they are applied.
+        pipeline.insert(0, ImageOp(overlay_that, {'overlay': overlay,
                                                'bucket': bucket,
                                                'path': path,
                                                'bg': bg}))
-
+    print("pipeline:", pipeline)
     return pipeline
 
 
