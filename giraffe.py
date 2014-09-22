@@ -20,6 +20,7 @@ import hashlib
 import hmac
 import os
 import re
+import urllib
 
 from dogpile.cache import make_region
 from dogpile.cache.util import sha1_mangle_key
@@ -266,6 +267,9 @@ def calculate_new_path(dirname, base, ext, args):
         if key == "fm":
             continue
         if val is not None:
+            if isinstance(val, basestring):
+                # escape special characters in URLs for overlay / mask arguments
+                val = urllib.quote_plus(val)
             stuff.append("{}{}".format(key, val))
 
     fmt = args.get('fm')
@@ -352,10 +356,16 @@ def get_file_or_404(bucket, path):
 
 def overlay_that(img, bucket=None, path=None, overlay=None, bg=None):
     print("get overlay params:", bucket, path, overlay, bg)
-    key = get_object_or_none(bucket, path)
-    overlay_content = key.content
 
-    if key:
+    if bucket:
+        key = get_object_or_none(bucket, path)
+        overlay_content = key.content
+    else:
+        overlay_content = None
+
+    print("Overlay content:", overlay_content)
+
+    if overlay_content:
         image_orientation = 'square'
         overlay_orientation = 'square'
 
@@ -405,7 +415,7 @@ def overlay_that(img, bucket=None, path=None, overlay=None, bg=None):
         # Overlay canvas:
         img.composite(overlay_img, 0, 0)
     else:
-        raise Exception("Couldn't find an overlay file for bucket '{}' and path '{}'".format(bucket, path))
+        raise Exception("Couldn't find an overlay file for bucket '{}' and path '{}' (overlay='{}')".format(bucket, path, overlay))
     return img
 
 
@@ -578,6 +588,7 @@ def stubbornly_load_image(content, headers, path):
 
 @region.cache_on_arguments()
 def get_file_with_params_or_404(bucket, path, param_name, args, force):
+    print("get_file_with_params_or_404 args for cache invalidation:", bucket, path, param_name, args, force)
     key = get_object_or_none(bucket, path)
     if key:
         if force:
