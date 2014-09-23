@@ -25,9 +25,12 @@ from dogpile.cache import make_region
 from dogpile.cache.util import sha1_mangle_key
 from flask import Flask
 from flask import request
+from flask import render_template
 from PIL import Image as PillowImage
-from requests.exceptions import HTTPError
+from requests.exceptions import HTTPError, ConnectionError
 import requests
+import six
+from six.moves.urllib import parse
 import tinys3
 import wand
 from wand.color import Color
@@ -161,7 +164,7 @@ def path_to_format(path):
 
 @app.route("/")
 def index():
-    return "Hello World"
+    return render_template("index.html")
 
 
 @app.route("/placeholders/<string:filename>")
@@ -265,6 +268,9 @@ def calculate_new_path(dirname, base, ext, args):
         if key == "fm":
             continue
         if val is not None:
+            if isinstance(val, six.string_types):
+                # escape special characters in URLs for overlay / mask arguments
+                val = parse.quote_plus(val)
             stuff.append("{}{}".format(key, val))
 
     fmt = args.get('fm')
@@ -277,6 +283,7 @@ def calculate_new_path(dirname, base, ext, args):
     filename_with_args = "_".join(str(x) for x in stuff) + "." + ext
     # if we enable compression we may want to modify the filename here to include *.gz
     param_name = os.path.join(CACHE_DIR, dirname, filename_with_args)
+    print("param name:", param_name)
     return param_name
 
 
@@ -301,6 +308,8 @@ def get_image_args(args):
     rot = positive_int_or_none(args.get("rot"))
     fm = args.get('fm')
     q = positive_int_or_none(args.get('q'))
+    bg = args.get('bg')
+    overlay = args.get('overlay')
 
     image_args = OrderedDict()
     if w:
@@ -317,6 +326,11 @@ def get_image_args(args):
         image_args['fm'] = fm
     if q:
         image_args['q'] = q
+    if overlay:
+        image_args['overlay'] = overlay
+    if bg:
+        image_args['bg'] = bg
+
     return image_args
 
 
@@ -341,6 +355,75 @@ def get_file_or_404(bucket, path):
         return "404: file '{}' doesn't exist".format(path), 404
 
 
+def overlay_that(img, bucket=None, path=None, overlay=None, bg=None):
+    print("get overlay params:", bucket, path, overlay, bg)
+
+    if bucket:
+        key = get_object_or_none(bucket, path)
+        overlay_content = key.content
+    else:
+        try:
+            resp = requests.get(overlay)
+        except (ConnectionError) as e:
+            print(e)
+            raise
+        else:
+            overlay_content = resp.content
+
+    if overlay_content:
+        image_orientation = 'square'
+        overlay_orientation = 'square'
+
+        if img.width > img.height:
+            image_orientation = 'landscape'
+        elif img.width < img.height:
+            image_orientation = 'portrait'
+
+        overlay_img = stubbornly_load_image(overlay_content, None, None)
+
+        if overlay_img.width > overlay_img.height:
+            overlay_orientation = 'landscape'
+        elif overlay_img.width < overlay_img.height:
+            overlay_orientation = 'portrait'
+
+        overlay_width, overlay_height = overlay_img.width, overlay_img.height
+        print("overlay size:", overlay_width, overlay_height)
+        #width, height = 600, 950
+
+        # step one, size the art:
+        if overlay_orientation == image_orientation:
+            # if the orientations are the same then just shrink the img
+            # to a third the size of the overlay:
+            width, height = overlay_width // 3, overlay_height // 3
+        else:
+            # otherwise if the overlay is landscape and the source
+            # image is portrait than keep image portrait
+            # by flipping the overlays width and height
+            # before scaling
+            width, height = overlay_height // 3, overlay_width // 3
+
+        size = "{}x{}^".format(width, height)
+        crop_size = "{}x{}!".format(width, height)
+        img.transform(resize=size)
+        w_offset = max((img.width - width) / 2, 0)
+        h_offset = max((img.height - height) / 2, 0)
+        geometry = "{}+{}+{}".format(crop_size, w_offset, h_offset)
+        img.transform(crop=geometry)
+
+        # position the art over the canvas and/or optionally add bg color:
+        # TODO: handle missing bg color:
+        c = Color('#' + bg)
+        background = Image(width=overlay_width, height=overlay_height, background=c)
+        background.composite(img, ((overlay_width // 2) - (width // 2)), ((overlay_height // 2) - (height // 2)))
+        img = background
+
+        # Overlay canvas:
+        img.composite(overlay_img, 0, 0)
+    else:
+        raise Exception("Couldn't find an overlay file for bucket '{}' and path '{}' (overlay='{}')".format(bucket, path, overlay))
+    return img
+
+
 def process_image(img, operations):
     for op in operations:
         if callable(op.function):
@@ -362,7 +445,6 @@ def process_image(img, operations):
                     img.transform(resize=size)
             else:
                 # this is my attempt at ResizeToFit from PILKit:
-                format = normalize_mimetype(img.format)
                 if img.animation:
                     img.resize(op.params['width'], op.params['height'])
                 else:
@@ -373,7 +455,6 @@ def process_image(img, operations):
                     h_offset = max((img.height - op.params['height']) / 2, 0)
                     geometry = "{}+{}+{}".format(crop_size, w_offset, h_offset)
                     img.transform(crop=geometry)
-
         if op.function == 'liquid':
             # this will raise a MissingDelegateError if you don't compile
             # imagemagick with the `--with-lqr` option.
@@ -386,6 +467,7 @@ def process_image(img, operations):
             img.format = op.params['format']
         if op.function == 'rotate':
             img.rotate(op.params['degrees'])
+
     return img
 
 
@@ -465,6 +547,21 @@ def build_pipeline(params):
     if fm == 'jpg' or fm == 'jpeg':
         pipeline.append(ImageOp('format', {'format': 'jpeg'}))
 
+    overlay = params.get('overlay', None)
+    if overlay:
+        bg = params.get('bg', '0FFF')
+        segments = overlay.split("/")
+        bucket = segments[1]
+        path = "/" + "/".join(segments[2:])
+
+        # order matters, I think we want to do this first, then resize or flip:
+        # TODO: consider allowing the order arguments are specified on the URL
+        # influence the order in which they are applied.
+        pipeline.insert(0, ImageOp(overlay_that, {'overlay': overlay,
+                                               'bucket': bucket,
+                                               'path': path,
+                                               'bg': bg}))
+    print("pipeline:", pipeline)
     return pipeline
 
 
@@ -495,6 +592,7 @@ def stubbornly_load_image(content, headers, path):
 
 @region.cache_on_arguments()
 def get_file_with_params_or_404(bucket, path, param_name, args, force):
+    print("get_file_with_params_or_404 args for cache invalidation:", bucket, path, param_name, args, force)
     key = get_object_or_none(bucket, path)
     if key:
         if force:
