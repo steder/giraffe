@@ -47,6 +47,10 @@ FORMAT_MAP = {
         'extension': 'jpg',
         'format': {'format': 'jpeg'},
     },
+    'eps': {
+        'extension': 'eps',
+        'format': {'format': 'eps'},
+    },
 }
 
 FORMAT_MAP['jpeg'] = FORMAT_MAP['jpg']
