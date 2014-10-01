@@ -38,6 +38,23 @@ from wand.font import Font
 from wand.image import Image
 from werkzeug.exceptions import BadRequest
 
+FORMAT_MAP = {
+    'png': {
+        'extension': 'png',
+        'format': {'format': 'png'},
+    },
+    'jpg': {
+        'extension': 'jpg',
+        'format': {'format': 'jpeg'},
+    },
+    'eps': {
+        'extension': 'eps',
+        'format': {'format': 'eps'},
+    },
+}
+
+FORMAT_MAP['jpeg'] = FORMAT_MAP['jpg']
+
 
 app = Flask(__name__)
 ENV = os.environ.get("ENV", "development").lower()
@@ -275,10 +292,7 @@ def calculate_new_path(dirname, base, ext, args):
 
     fmt = args.get('fm')
     if fmt:
-        if fmt == 'png':
-            ext = 'png'
-        if fmt == 'jpg' or fmt == 'jpeg':
-            ext = 'jpg'
+        ext = FORMAT_MAP[fmt]['extension']
 
     filename_with_args = "_".join(str(x) for x in stuff) + "." + ext
     # if we enable compression we may want to modify the filename here to include *.gz
@@ -542,10 +556,8 @@ def build_pipeline(params):
         )
 
     fm = params.get('fm')
-    if fm == 'png':
-        pipeline.append(ImageOp('format', {'format': 'png'}))
-    if fm == 'jpg' or fm == 'jpeg':
-        pipeline.append(ImageOp('format', {'format': 'jpeg'}))
+    if fm:
+        pipeline.append(ImageOp('format', FORMAT_MAP[fm]['format']))
 
     overlay = params.get('overlay', None)
     if overlay:

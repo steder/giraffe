@@ -4,7 +4,7 @@ Image pipelines are hard; let's go ride bikes!
 
 This is partly a reaction to looking at the imgix service, which is "not just imagemagick on ec2", and saying that "imagemagick on ec2" sounds an awful lot like something I actually want.
 
-![travis ci builid status](https://travis-ci.org/steder/giraffe.png)
+![travis ci build status](https://travis-ci.org/steder/giraffe.png)
 
 ## Why call it Giraffe?
 
