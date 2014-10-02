@@ -24,19 +24,21 @@ SNS_ARN = "arn:aws:sns:us-east-1:{}:{}".format(AWS_ACCOUNT_NUMBER, CLOUD_APP)
 
 SERVER_USER = "ubuntu"
 KEY_NAME = os.environ.get("KEY_NAME")
-SSH_KEY_FILE = KEY_NAME if os.path.exists(KEY_NAME) else os.path.expanduser("~/.ssh/{}".format(KEY_NAME))
+if KEY_NAME:
+    SSH_KEY_FILE = KEY_NAME if os.path.exists(KEY_NAME) else os.path.expanduser("~/.ssh/{}".format(KEY_NAME))
+    env.key_filename = SSH_KEY_FILE
 
 ASGARD_HOST = os.environ.get("ASGARD_HOST")
 ASGARD_CRED_FILE = "{}/.asgard/credentials".format(os.getenv("HOME"))
 ASGARD_CREDENTIALS = (line[:-1] for line in open(ASGARD_CRED_FILE, "r").readlines())
 
 env.forward_agent = True
-env.key_filename = SSH_KEY_FILE
 env.user = SERVER_USER
 env.connection_attempts = 5
 
 
 def aws_hosts(lb=LOAD_BALANCER_NAME):
+    print "aws_hosts(lb):", lb
     # This assumes your bash_profile has
     # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY set.
 
@@ -56,7 +58,7 @@ def aws_hosts(lb=LOAD_BALANCER_NAME):
     instance_ids.sort()  # Put the tuples in some sort of order
 
     # Get the public CNAMES for those instances.
-    hosts = [node[1] for node in instance_ids]
+    hosts = [node[1] for node in instance_ids if node[1] is not None]
 
     return hosts, instance_ids[0][0], instance_ids[0][2]
 
@@ -72,7 +74,7 @@ def autoscale_group_hosts(group_name):
     instance_ids = []
     instances = []
     for group in groups:
-        print group.name
+        print "group name:", group.name
         instance_ids.extend([i.instance_id for i in group.instances])
         instances.extend(ec2.get_only_instances(instance_ids))
 
@@ -164,17 +166,20 @@ def deploy_next_asg(ami):
 
 
 # Set hosts to the defaults (giraffe-staging)
-env.hosts, INSTANCE_ID, INSTANCE_CLUSTER = aws_hosts()
-print env.hosts, INSTANCE_ID, INSTANCE_CLUSTER
+# env.hosts, INSTANCE_ID, INSTANCE_CLUSTER = autoscale_group_hosts(DEV_PHASE)
+# print "hosts:", env.hosts
+# print "instance_id:", INSTANCE_ID
+# print "cluster:", INSTANCE_CLUSTER
 
 
 def set_environment(env_name="staging"):
+    print "set_environment:", env_name
     global DEV_PHASE, INSTANCE_ID, INSTANCE_CLUSTER
     DEV_PHASE = env_name
     group = "{}-d0{}".format(CLOUD_APP, env_name)
     print 'autoscale group name', group
     env.hosts, INSTANCE_ID, INSTANCE_CLUSTER = autoscale_group_hosts(group)
-    print "hosts:", env.hosts
+    print "hosts:", env.hosts, INSTANCE_ID, INSTANCE_CLUSTER
 
 
 # Tweak which boxes you run commands on:
@@ -217,6 +222,7 @@ def production():
       $ fab production restart
 
     """
+    print "running production task"
     set_environment(env_name="production")
 
 
@@ -239,6 +245,7 @@ def inplace_deploy(tag="master"):
 
 @task
 def hostname():
+    print "running hostname task"
     run('hostname')
 
 
