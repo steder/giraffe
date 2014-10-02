@@ -5,6 +5,7 @@ import subprocess
 
 import boto
 from fabric.api import cd, env, run, task
+from fabric.contrib.files import sed
 from fabtools import service
 from fabtools.python import virtualenv
 import hammock
@@ -18,6 +19,7 @@ GIT_REPO = "git@github.com:steder/giraffe.git"
 DEV_PHASES = ["beta", "staging", "production"]
 DEV_PHASE = "staging"
 
+NEWRELIC_LICENSE = os.environ.get("NEWRELIC_LICENSE_KEY")
 AWS_ACCOUNT_NUMBER = os.environ.get("AWS_ACCOUNT_NUMBER")
 LOAD_BALANCER_NAME = "{}-staging".format(CLOUD_APP)
 SNS_ARN = "arn:aws:sns:us-east-1:{}:{}".format(AWS_ACCOUNT_NUMBER, CLOUD_APP)
@@ -78,12 +80,19 @@ def autoscale_group_hosts(group_name):
         instance_ids.extend([i.instance_id for i in group.instances])
         instances.extend(ec2.get_only_instances(instance_ids))
 
-    return [i.private_ip_address for i in instances], instances[0].id, instances[0].tags.get("aws:autoscaling:groupName")
+    return set([i.private_ip_address for i in instances]), instances[0].id, instances[0].tags.get("aws:autoscaling:groupName")
 
 
 def is_git_tag(ref):
     lines = subprocess.check_output(['git', 'show-ref', ref])
     return 'refs/tags' in lines
+
+
+def set_newrelic_license_key():
+    with cd(APP_DIR):
+        sed("etc/newrelic.ini", 'not-a-license-key', NEWRELIC_LICENSE,
+            limit='', use_sudo=False,
+            backup='.bak', flags='', shell=False)
 
 
 def update_code(tag):
@@ -94,7 +103,7 @@ def update_code(tag):
         run("git checkout " + str(tag))
         if not is_git_tag(tag):
             run("git pull")
-
+        set_newrelic_license_key()
 
 def build_app():
     with cd(APP_DIR):
@@ -160,7 +169,7 @@ def deploy_next_asg(ami):
             next_asg_log = "\n".join(i for i in next_asg_result["log"])
 
         message = next_asg_log + "\n\n" + delete_asg_log
-        subject = "Asgard results for {}-{}".format(CLOUD_APP)
+        subject = "Asgard results for {}-{}".format(CLOUD_APP, DEV_PHASE)
         publish_to_sns(message, subject)
     return True
 
@@ -252,3 +261,9 @@ def hostname():
 @task
 def restart():
     restart_app()
+
+
+@task
+def restart_newrelic():
+    run("sudo service newrelic-sysmond restart")
+    set_newrelic_license_key()
