@@ -324,6 +324,10 @@ def get_image_args(args):
     q = positive_int_or_none(args.get('q'))
     bg = args.get('bg')
     overlay = args.get('overlay')
+    ox = args.get('ox')
+    oy = args.get('oy')
+    ow = args.get('ow')
+    oh = args.get('oh')
 
     image_args = OrderedDict()
     if w:
@@ -342,6 +346,14 @@ def get_image_args(args):
         image_args['q'] = q
     if overlay:
         image_args['overlay'] = overlay
+    if ox:
+        image_args['ox'] = int(ox)
+    if oy:
+        image_args['oy'] = int(oy)
+    if ow:
+        image_args['ow'] = int(ow)
+    if oh:
+        image_args['oh'] = int(oh)
     if bg:
         image_args['bg'] = bg
 
@@ -369,7 +381,7 @@ def get_file_or_404(bucket, path):
         return "404: file '{}' doesn't exist".format(path), 404
 
 
-def overlay_that(img, bucket=None, path=None, overlay=None, bg=None):
+def overlay_that(img, bucket=None, path=None, overlay=None, bg=None, w=None, h=None, x=None, y=None):
     print("get overlay params:", bucket, path, overlay, bg)
 
     if bucket:
@@ -385,6 +397,12 @@ def overlay_that(img, bucket=None, path=None, overlay=None, bg=None):
             overlay_content = resp.content
 
     if overlay_content:
+
+        if w and h and x and y:
+            pass
+        else:
+            w, h, x, y = 294, 336, 489, 173
+
         image_orientation = 'square'
         overlay_orientation = 'square'
 
@@ -401,34 +419,15 @@ def overlay_that(img, bucket=None, path=None, overlay=None, bg=None):
             overlay_orientation = 'portrait'
 
         overlay_width, overlay_height = overlay_img.width, overlay_img.height
-        print("overlay size:", overlay_width, overlay_height)
-        #width, height = 600, 950
-
-        # step one, size the art:
-        if overlay_orientation == image_orientation:
-            # if the orientations are the same then just shrink the img
-            # to a third the size of the overlay:
-            width, height = overlay_width // 3, overlay_height // 3
-        else:
-            # otherwise if the overlay is landscape and the source
-            # image is portrait than keep image portrait
-            # by flipping the overlays width and height
-            # before scaling
-            width, height = overlay_height // 3, overlay_width // 3
-
+        width, height = w, h
         size = "{}x{}^".format(width, height)
         crop_size = "{}x{}!".format(width, height)
         img.transform(resize=size)
         w_offset = max((img.width - width) / 2, 0)
         h_offset = max((img.height - height) / 2, 0)
-        geometry = "{}+{}+{}".format(crop_size, w_offset, h_offset)
-        img.transform(crop=geometry)
-
-        # position the art over the canvas and/or optionally add bg color:
-        # TODO: handle missing bg color:
         c = Color('#' + bg)
         background = Image(width=overlay_width, height=overlay_height, background=c)
-        background.composite(img, ((overlay_width // 2) - (width // 2)), ((overlay_height // 2) - (height // 2)))
+        background.composite(img, x, y)
         img = background
 
         # Overlay canvas:
@@ -569,10 +568,19 @@ def build_pipeline(params):
         # order matters, I think we want to do this first, then resize or flip:
         # TODO: consider allowing the order arguments are specified on the URL
         # influence the order in which they are applied.
-        pipeline.insert(0, ImageOp(overlay_that, {'overlay': overlay,
-                                               'bucket': bucket,
-                                               'path': path,
-                                               'bg': bg}))
+        pipeline.insert(0, ImageOp(
+            overlay_that,
+            {'overlay': overlay,
+             'bucket': bucket,
+             'path': path,
+             'bg': bg,
+             'x': params.get('ox', None),
+             'y': params.get('oy', None),
+             'w': params.get('ow', None),
+             'h': params.get('oh', None),
+         }
+        ))
+
     print("pipeline:", pipeline)
     return pipeline
 
