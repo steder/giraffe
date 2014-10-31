@@ -21,8 +21,6 @@ import hmac
 import os
 import re
 
-from dogpile.cache import make_region
-from dogpile.cache.util import sha1_mangle_key
 from flask import Flask
 from flask import request
 from flask import render_template
@@ -75,43 +73,6 @@ DEFAULT_QUALITY = 75
 MAX_WIDTH = 7680
 MAX_HEIGHT = 4320
 MAX_PIXELS = MAX_WIDTH * MAX_HEIGHT # 8K resolution is pretty damn big
-
-if CACHE_URLS:
-    # TODO: memcached fails to cache when the cached object
-    # is over 1MB (which can happen with some larger images)
-    # so we may want to simply remove the memcached caching
-    # or replace with a cache backend that is more tolerant of
-    # larger objects.
-    #
-    # For now I'm just disabling memcache on our projects and relying
-    # on cloudfront for most of our caching needs.
-    print("starting up with memcached: %s"%(CACHE_URLS,))
-    region = make_region(key_mangler=sha1_mangle_key).configure(
-        'dogpile.cache.bmemcached',
-        expiration_time=86400,
-        arguments = {
-            'url': CACHE_URLS,
-            'distributed_lock': True,
-        },
-    )
-else:
-    print("starting up with in-process memory cache")
-    region = make_region().configure(
-        'dogpile.cache.memory',
-        expiration_time=300,
-    )
-
-# # DEBUG Cache-Nothing REGION:
-# class CacheNothing(object):
-#     @staticmethod
-#     def cache_on_arguments():
-#         def deco(f):
-#             def wrapper(*args, **kwargs):
-#                 return f(*args, **kwargs)
-#             return wrapper
-#         return deco
-
-# region = CacheNothing()
 
 
 def get_image_size(bytes):
@@ -371,7 +332,6 @@ def get_object_or_none(bucket, path):
     return obj
 
 
-@region.cache_on_arguments()
 def get_file_or_404(bucket, path):
     key = get_object_or_none(bucket, path)
     if key:
@@ -610,7 +570,6 @@ def stubbornly_load_image(content, headers, path):
             raise orig_e
 
 
-@region.cache_on_arguments()
 def get_file_with_params_or_404(bucket, path, param_name, args, force):
     print("get_file_with_params_or_404 args for cache invalidation:", bucket, path, param_name, args, force)
     key = get_object_or_none(bucket, path)
