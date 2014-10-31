@@ -4,8 +4,6 @@ MarkupSafe==0.18
 Pillow==2.4.0
 Wand==0.3.7
 Werkzeug==0.9.4
-dogpile.core==0.4.1
-dogpile.cache==0.5.2
 flexmock==0.9.7
 futures==2.1.5
 gevent==1.0.1

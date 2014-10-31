@@ -348,16 +348,6 @@ class TestImageRoute(FlaskTestCase):
         with Color('red') as bg:
             self.image = Image(width=1920, height=1080, background=bg)
 
-        # let's clear the cache
-        params = OrderedDict()
-        params['w'] = 100
-        params['h'] = 100
-        giraffe.get_file_or_404.invalidate(self.bucket, "redbull.jpg")
-        giraffe.get_file_with_params_or_404.invalidate(self.bucket,
-                                                       "redbull.jpg",
-                                                       "{}/redbull_w100_h100.jpg".format(giraffe.CACHE_DIR),
-                                                       params,
-                                                       False)
 
     @mock.patch('giraffe.s3')
     def test_image_doesnt_exist(self, s3):
@@ -602,26 +592,6 @@ class TestOverlayRoutes(FlaskTestCase):
         super(TestOverlayRoutes, self).setUp()
         with Color('red') as bg:
             self.image = Image(width=1920, height=1080, background=bg)
-
-        # let's clear the cache
-        params = OrderedDict()
-        params['w'] = 100
-        params['h'] = 100
-        giraffe.get_file_or_404.invalidate(self.bucket, "art.png")
-        giraffe.get_file_with_params_or_404.invalidate(self.bucket,
-                                                       "art.png",
-                                                       "{}/art_w100_h100.jpg".format(giraffe.CACHE_DIR),
-                                                       params,
-                                                       False)
-        params = OrderedDict()
-        params['bg'] = '451D74'
-        params['overlay'] = '/wtf/tshirts/overlay.png'
-        giraffe.get_file_with_params_or_404.invalidate(
-            self.bucket,
-            "art.png",
-            '{}/art_overlayhttps://cloudfront.whatever.org/tshirts/overlay.png_bg451D74.png'.format(giraffe.CACHE_DIR),
-            params,
-            False)
 
     @mock.patch('giraffe.s3')
     def test_image_overlay_relative_url(self, s3):
