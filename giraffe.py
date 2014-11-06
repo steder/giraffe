@@ -258,7 +258,6 @@ def calculate_new_path(dirname, base, ext, args):
     filename_with_args = "_".join(str(x) for x in stuff) + "." + ext
     # if we enable compression we may want to modify the filename here to include *.gz
     param_name = os.path.join(CACHE_DIR, dirname, filename_with_args)
-    print("param name:", param_name)
     return param_name
 
 
@@ -342,8 +341,6 @@ def get_file_or_404(bucket, path):
 
 
 def overlay_that(img, bucket=None, path=None, overlay=None, bg=None, w=None, h=None, x=None, y=None):
-    print("get overlay params:", bucket, path, overlay, bg)
-
     if bucket:
         key = get_object_or_none(bucket, path)
         overlay_content = key.content
@@ -357,8 +354,7 @@ def overlay_that(img, bucket=None, path=None, overlay=None, bg=None, w=None, h=N
             overlay_content = resp.content
 
     if overlay_content:
-
-        if w and h and x and y:
+        if w is not None and h is not None and x is not None and y is not None:
             pass
         else:
             w, h, x, y = 294, 336, 489, 173
@@ -381,10 +377,10 @@ def overlay_that(img, bucket=None, path=None, overlay=None, bg=None, w=None, h=N
         overlay_width, overlay_height = overlay_img.width, overlay_img.height
         width, height = w, h
         size = "{}x{}^".format(width, height)
-        crop_size = "{}x{}!".format(width, height)
+        #crop_size = "{}x{}!".format(width, height)
         img.transform(resize=size)
-        w_offset = max((img.width - width) / 2, 0)
-        h_offset = max((img.height - height) / 2, 0)
+        #w_offset = max((img.width - width) / 2, 0)
+        #h_offset = max((img.height - height) / 2, 0)
         c = Color('#' + bg)
         background = Image(width=overlay_width, height=overlay_height, background=c)
         background.composite(img, x, y)
@@ -540,8 +536,6 @@ def build_pipeline(params):
              'h': params.get('oh', None),
          }
         ))
-
-    print("pipeline:", pipeline)
     return pipeline
 
 
@@ -571,7 +565,6 @@ def stubbornly_load_image(content, headers, path):
 
 
 def get_file_with_params_or_404(bucket, path, param_name, args, force):
-    print("get_file_with_params_or_404 args for cache invalidation:", bucket, path, param_name, args, force)
     key = get_object_or_none(bucket, path)
     if key:
         if force:
