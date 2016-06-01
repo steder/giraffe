@@ -1,4 +1,4 @@
-FROM alpine
+FROM ubuntu:16.04
 
 # metadata
 MAINTAINER steder@gmail.com
@@ -7,15 +7,16 @@ LABEL version="1.0"
 ENV ENV=development
 
 # actual container setup:
-RUN apk add --update \
-    build-base \
-    imagemagick \
+RUN apt-get update \
+    && apt-get -y upgrade \
+    && apt-get install -y build-essential \
+    && apt-get install -y imagemagick \
     git \
     python \
     python-dev \
-    py-pip \
+    python-pip \
     && pip install virtualenv \
-    && rm -rf /var/cache/apk/*
+    && rm -rf /var/lib/apt/lists/*
 
 # Giraffe listens on 9876 by default
 EXPOSE 9876
@@ -32,4 +33,4 @@ RUN virtualenv /opt/app/env && \
 
 # GO GO GO!
 
-CMD /opt/app/env/bin/python /opt/app/giraffe.py
+CMD ["/opt/app/env/bin/python", "/opt/app/giraffe.py"]

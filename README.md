@@ -103,14 +103,18 @@ tox
 
 Check out `install.sh`
 
+## Docker
+
+You can now use docker to build and deploy.  Simply do:
+
+    docker run -d -p 9876:9876 -e AWS_ACCESS_KEY_ID=<your access key> -e AWS_SECRET_ACCESS_KEY=<your secret access key> steder/giraffe
+
 ## TODO
 
  - documentation of camo functionality (proxying insecure image URLs like [atmos/camo](https://github.com/atmos/camo)
  - documentation of placeholder functionality
  - support more imgix functionality
  - better caching: memcache caching of images is problematic; memcache complains about caching values over 1MB and it is sadly quite easy to do.
- - Use ec2-metadata and AWS roles to distribute S3 access tokens
-
 
 ## Sites
 
