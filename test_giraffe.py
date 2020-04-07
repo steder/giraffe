@@ -5,13 +5,14 @@ from collections import OrderedDict
 import unittest
 
 import mock
+import pytest
 import requests
 from requests.exceptions import HTTPError
 from wand.color import Color
 from wand.drawing import Drawing
+from wand.exceptions import MissingDelegateError
 from wand.image import Image
 from werkzeug.exceptions import BadRequest
-
 import giraffe
 
 
@@ -34,42 +35,41 @@ def make_httperror(code):
 
 class TestBuildPipelineFromParams(unittest.TestCase):
     def test_resize_only(self):
-        pipeline = giraffe.build_pipeline(
-           {"w": 100, "h": 50}
-        )
-        self.assertEqual(pipeline,
-            [giraffe.ImageOp('resize', {'width': 100, 'height': 50}),
-            ]
+        pipeline = giraffe.build_pipeline({"w": 100, "h": 50})
+        self.assertEqual(
+            pipeline, [giraffe.ImageOp('resize', {'width': 100, 'height': 50})]
         )
 
     def test_resize_fit_crop_center(self):
         pipeline = giraffe.build_pipeline(
-            {"w": 100, "h": 50,
-             "fit": "crop",
-             #"crop": None
-             }
+            {
+                "w": 100,
+                "h": 50,
+                "fit": "crop",
+                # "crop": None
+            }
         )
         self.assertEqual(len(pipeline), 1)
         self.assertEqual(pipeline[0].function.__name__, "fit_crop")
-        self.assertEqual(pipeline[0].params, {'anchor': 'center', 'height': 50, 'width': 100})
+        self.assertEqual(
+            pipeline[0].params, {'anchor': 'center', 'height': 50, 'width': 100}
+        )
 
     def test_resize_fit_liquid(self):
         pipeline = giraffe.build_pipeline(
-            {"w": 100, "h": 50,
-             "fit": "liquid",
-             #"crop": None
-             }
+            {
+                "w": 100,
+                "h": 50,
+                "fit": "liquid",
+                # "crop": None
+            }
         )
         self.assertEqual(len(pipeline), 1)
         self.assertEqual(pipeline[0].function, "liquid")
         self.assertEqual(pipeline[0].params, {'height': 50, 'width': 100})
 
     def test_format_png(self):
-        pipeline = giraffe.build_pipeline(
-            {"w": 100, "h": 50,
-             "fm": "png",
-             }
-        )
+        pipeline = giraffe.build_pipeline({"w": 100, "h": 50, "fm": "png"})
         self.assertEqual(len(pipeline), 2)
         self.assertEqual(pipeline[0].function, "resize")
         self.assertEqual(pipeline[0].params, {'height': 50, 'width': 100})
@@ -77,22 +77,17 @@ class TestBuildPipelineFromParams(unittest.TestCase):
         self.assertEqual(pipeline[1].params, {'format': 'png'})
 
     def test_rotate(self):
-        pipeline = giraffe.build_pipeline(
-            {"rot": 90}
-        )
+        pipeline = giraffe.build_pipeline({"rot": 90})
 
-        self.assertEqual(pipeline,
-            [giraffe.ImageOp('rotate', {'degrees' : 90}),
-            ]
-        )
+        self.assertEqual(pipeline, [giraffe.ImageOp('rotate', {'degrees': 90})])
 
     def test_bad_rotate(self):
-        self.assertRaises(BadRequest, giraffe.build_pipeline, ({"rot":-1}))
-        self.assertRaises(BadRequest, giraffe.build_pipeline, ({"rot":360}))
-        self.assertRaises(BadRequest, giraffe.build_pipeline, ({"rot":"stringy"}))
+        self.assertRaises(BadRequest, giraffe.build_pipeline, ({"rot": -1}))
+        self.assertRaises(BadRequest, giraffe.build_pipeline, ({"rot": 360}))
+        self.assertRaises(BadRequest, giraffe.build_pipeline, ({"rot": "stringy"}))
 
-        giraffe.build_pipeline({"rot":1.0})
-        giraffe.build_pipeline({"rot":1.1})
+        giraffe.build_pipeline({"rot": 1.0})
+        giraffe.build_pipeline({"rot": 1.1})
 
 
 class TestExtractingFormats(unittest.TestCase):
@@ -132,93 +127,59 @@ class TestExtractingFormats(unittest.TestCase):
 
 class TestGetImageArgs(unittest.TestCase):
     def test_no_params(self):
-        self.assertEqual(
-            giraffe.get_image_args({}),
-            {}
-        )
+        self.assertEqual(giraffe.get_image_args({}), {})
 
     def test_negative_height(self):
-        self.assertEqual(
-            giraffe.get_image_args({'h': -100}),
-            {}
-        )
+        self.assertEqual(giraffe.get_image_args({'h': -100}), {})
 
     def test_negative_width(self):
-        self.assertEqual(
-            giraffe.get_image_args({'w': -100}),
-            {}
-        )
+        self.assertEqual(giraffe.get_image_args({'w': -100}), {})
 
     def test_valid_width(self):
-        self.assertEqual(
-            giraffe.get_image_args({'w': 100}),
-            {'w': 100}
-        )
+        self.assertEqual(giraffe.get_image_args({'w': 100}), {'w': 100})
 
     def test_valid_height(self):
-        self.assertEqual(
-            giraffe.get_image_args({'h': 100}),
-            {'h': 100}
-        )
+        self.assertEqual(giraffe.get_image_args({'h': 100}), {'h': 100})
 
     def test_valid_height_invalid_width(self):
-        self.assertEqual(
-            giraffe.get_image_args({'h': 100,
-                                    'w': -100
-                                }),
-            {'h': 100}
-        )
+        self.assertEqual(giraffe.get_image_args({'h': 100, 'w': -100}), {'h': 100})
 
     def test_valid_height_and_width(self):
         self.assertEqual(
-            giraffe.get_image_args({'h': 100,
-                                    'w': 100
-                                }),
-            {'h': 100, 'w': 100}
+            giraffe.get_image_args({'h': 100, 'w': 100}), {'h': 100, 'w': 100}
         )
 
     def test_valid_height_and_width_extra_param_ignored(self):
         self.assertEqual(
-            giraffe.get_image_args({'h': 100,
-                                    'w': 100,
-                                    'extra': 'hello world'
-                                }),
-            {'h': 100, 'w': 100}
+            giraffe.get_image_args({'h': 100, 'w': 100, 'extra': 'hello world'}),
+            {'h': 100, 'w': 100},
         )
 
     def test_fit_crop(self):
         self.assertEqual(
-            giraffe.get_image_args({'h': 100,
-                                    'w': 100,
-                                    'fit': 'crop',
-                                    'crop': 'center'
-                                }),
-            {'h': 100, 'w': 100, 'fit': 'crop'}
+            giraffe.get_image_args(
+                {'h': 100, 'w': 100, 'fit': 'crop', 'crop': 'center'}
+            ),
+            {'h': 100, 'w': 100, 'fit': 'crop'},
         )
 
     def test_flip_vertical(self):
-        self.assertEqual(giraffe.get_image_args({"flip": "v"}),
-                         {'flip': 'v'})
+        self.assertEqual(giraffe.get_image_args({"flip": "v"}), {'flip': 'v'})
 
     def test_flip_horizontal(self):
-        self.assertEqual(giraffe.get_image_args({"flip": "h"}),
-                         {'flip': 'h'})
+        self.assertEqual(giraffe.get_image_args({"flip": "h"}), {'flip': 'h'})
 
     def test_flip_both(self):
-        self.assertEqual(giraffe.get_image_args({"flip": "hv"}),
-                         {'flip': 'hv'})
+        self.assertEqual(giraffe.get_image_args({"flip": "hv"}), {'flip': 'hv'})
 
     def test_rotate(self):
-        self.assertEqual(giraffe.get_image_args({"rot": 123}),
-                         {"rot": 123})
+        self.assertEqual(giraffe.get_image_args({"rot": 123}), {"rot": 123})
 
     def test_fm_jpg(self):
-        self.assertEqual(giraffe.get_image_args({"fm": "jpg"}),
-                         {"fm": "jpg"})
+        self.assertEqual(giraffe.get_image_args({"fm": "jpg"}), {"fm": "jpg"})
 
     def test_fm_png(self):
-        self.assertEqual(giraffe.get_image_args({"fm": "png"}),
-                         {"fm": "png"})
+        self.assertEqual(giraffe.get_image_args({"fm": "png"}), {"fm": "png"})
 
 
 class TestGetObjectOrNone(unittest.TestCase):
@@ -227,8 +188,8 @@ class TestGetObjectOrNone(unittest.TestCase):
     or simply return None.
 
     """
-    bucket = "test.giraffe.bucket"
 
+    bucket = "test.giraffe.bucket"
 
     @mock.patch('giraffe.s3')
     def test_missing_object(self, s3):
@@ -264,7 +225,7 @@ class TestImageToBuffer(unittest.TestCase):
         compressed_buffer = giraffe.image_to_buffer(self.image, compress=True)
         compressed_size = len(compressed_buffer.getvalue())
         uncompressed_size = len(buffer.getvalue())
-        print("normal: %s, compressed: %s"%(uncompressed_size, compressed_size))
+        print("normal: %s, compressed: %s" % (uncompressed_size, compressed_size))
         self.assertLess(compressed_size, uncompressed_size)
 
     def test_image_to_binary(self):
@@ -278,29 +239,25 @@ class TestImageResize(unittest.TestCase):
             self.image = Image(width=1920, height=1080, background=bg)
 
     def test_resize(self):
-        pipeline = [
-            giraffe.ImageOp("resize", {'width':100, 'height': 100}),
-        ]
+        pipeline = [giraffe.ImageOp("resize", {'width': 100, 'height': 100})]
         img = giraffe.process_image(self.image, pipeline)
         self.assertEqual(img.size, (100, 100))
 
     def test_fit_crop_center(self):
-        pipeline = [giraffe.ImageOp(giraffe.fit_crop, {
-                        'width': 100,
-                        'height': 100,
-                        'anchor': 'center',
-                        }),
-                    ]
+        pipeline = [
+            giraffe.ImageOp(
+                giraffe.fit_crop, {'width': 100, 'height': 100, 'anchor': 'center'}
+            )
+        ]
         img = giraffe.process_image(self.image, pipeline)
         self.assertEqual(img.size, (100, 100))
 
     def test_fit_liquid(self):
-        pipeline = [giraffe.ImageOp('liquid', {
-                        'width': 100,
-                        'height': 100,
-                        }),
-                    ]
-        img = giraffe.process_image(self.image, pipeline)
+        pipeline = [giraffe.ImageOp('liquid', {'width': 100, 'height': 100})]
+        try:
+            img = giraffe.process_image(self.image, pipeline)
+        except MissingDelegateError:
+            pytest.skip("ImageMagick doesn't have Liquid Rescale support compiled in")
         self.assertEqual(img.size, (100, 100))
 
 
@@ -315,7 +272,7 @@ class TestImageRotate(unittest.TestCase):
                 draw.rectangle(left=50, top=0, right=54, bottom=image.height)
                 draw(image)
 
-        pipeline = [giraffe.ImageOp('rotate', {'degrees':90})]
+        pipeline = [giraffe.ImageOp('rotate', {'degrees': 90})]
         rotated_image = giraffe.process_image(image, pipeline)
 
         # verify that that image has a sideways bar of red in the middle
@@ -330,11 +287,13 @@ class TestImageRotate(unittest.TestCase):
                     self.assertNotEqual(col.blue, 0.0)
                     self.assertNotEqual(col.green, 0.0)
 
+
 class TestIndexRoute(FlaskTestCase):
     """
     Just a placeholder test:
 
     """
+
     def test_index(self):
         r = self.app.get("/")
         self.assertEqual(r.status_code, 200)
@@ -347,7 +306,6 @@ class TestImageRoute(FlaskTestCase):
         super(TestImageRoute, self).setUp()
         with Color('red') as bg:
             self.image = Image(width=1920, height=1080, background=bg)
-
 
     @mock.patch('giraffe.s3')
     def test_image_doesnt_exist(self, s3):
@@ -563,7 +521,7 @@ class TestImageRoute(FlaskTestCase):
         obj = mock.Mock()
         image = Image(width=16, height=16)
         obj.content = image.make_blob('ico')
-        obj.headers = {'content-type': 'image/jpeg'} # this is what S3 tells us =(
+        obj.headers = {'content-type': 'image/jpeg'}  # this is what S3 tells us =(
         s3.get.side_effect = [obj, make_httperror(404)]
         r = self.app.get("/{}/giant.jpg?w=64&h=64".format(self.bucket))
         self.assertEqual(r.status_code, 200)
@@ -576,7 +534,7 @@ class TestImageRoute(FlaskTestCase):
         obj = mock.Mock()
         image = Image(width=16, height=16)
         obj.content = image.make_blob('ico')
-        obj.headers = {'content-type': 'image/jpeg'} # this is what S3 tells us =(
+        obj.headers = {'content-type': 'image/jpeg'}  # this is what S3 tells us =(
         s3.get.side_effect = [obj, make_httperror(404)]
         r = self.app.get("/{}/giant.jpg?w=400&h=400".format(self.bucket))
         self.assertEqual(r.status_code, 200)
@@ -599,7 +557,11 @@ class TestOverlayRoutes(FlaskTestCase):
         obj.content = self.image.make_blob("png")
         # s3 requests for 1. original image, 2. generated image with overlay, 3. overlay
         s3.get.side_effect = [obj, make_httperror(404), obj]
-        r = self.app.get("/{b}/art.png?overlay=/{b}/tshirts/overlay.png&bg=451D74".format(b=self.bucket))
+        r = self.app.get(
+            "/{b}/art.png?overlay=/{b}/tshirts/overlay.png&bg=451D74".format(
+                b=self.bucket
+            )
+        )
         self.assertEqual(r.status_code, 200)
         self.assertEqual(Image(blob=r.data).size, (1920, 1080))
 
@@ -611,7 +573,9 @@ class TestOverlayRoutes(FlaskTestCase):
         obj.content = self.image.make_blob("jpg")
         # s3 requests for 1. original image, 2. generated image with overlay, 3. overlay
         s3.get.side_effect = [obj, make_httperror(404), obj]
-        r = self.app.get("/{b}/art.jpg?overlay=/{b}/tshirts/overlay.png".format(b=self.bucket))
+        r = self.app.get(
+            "/{b}/art.jpg?overlay=/{b}/tshirts/overlay.png".format(b=self.bucket)
+        )
         self.assertEqual(r.status_code, 200)
         self.assertEqual(Image(blob=r.data).size, (1920, 1080))
 
@@ -621,9 +585,13 @@ class TestOverlayRoutes(FlaskTestCase):
         obj = mock.Mock()
         obj.content = self.image.make_blob("png")
         s3.get.side_effect = [obj, make_httperror(404)]
-        requests.get.side_effect = [obj,]
+        requests.get.side_effect = [obj]
 
-        r = self.app.get("/{}/art.png?overlay=https://cloudfront.whatever.org/tshirts/overlay.png&bg=451D74".format(self.bucket))
+        r = self.app.get(
+            "/{}/art.png?overlay=https://cloudfront.whatever.org/tshirts/overlay.png&bg=451D74".format(
+                self.bucket
+            )
+        )
         self.assertEqual(r.status_code, 200)
         self.assertEqual(Image(blob=r.data).size, (1920, 1080))
 
@@ -632,6 +600,10 @@ class TestOverlayRoutes(FlaskTestCase):
         obj = mock.Mock()
         obj.content = self.image.make_blob("png")
         s3.get.side_effect = [obj, make_httperror(404), obj]
-        r = self.app.get("/{b}/art.png?overlay=/{b}/tshirts/overlay.png&bg=451D74&w=100&h=100".format(b=self.bucket))
+        r = self.app.get(
+            "/{b}/art.png?overlay=/{b}/tshirts/overlay.png&bg=451D74&w=100&h=100".format(
+                b=self.bucket
+            )
+        )
         self.assertEqual(r.status_code, 200)
         self.assertEqual(Image(blob=r.data).size, (100, 100))
