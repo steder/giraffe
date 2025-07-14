@@ -7,7 +7,7 @@ authors = ["Mike Steder <steder@gmail.com>"]
 [tool.poetry.dependencies]
 python = "^3.13"
 # Modern ASGI framework and server
-fastapi = "^0.104.1"
+fastapi = "^0.116.1"
 uvicorn = {extras = ["standard"], version = "^0.35.0"}
 pillow = "^11.3.0"
 tinys3 = "^0.1.12"

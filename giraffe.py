@@ -24,6 +24,7 @@ import hmac
 import os
 import re
 from typing import Optional
+from urllib import parse
 
 # FastAPI imports
 from fastapi import FastAPI, Request, HTTPException, Query, Path
@@ -171,6 +172,8 @@ def normalize_mimetype(ext):
 
     """
     sanitized_ext = sanitize_extension(ext)
+    if not sanitized_ext:
+        raise ValueError(f"Invalid extension: '{ext}'")
     if sanitized_ext in JPEG_EXTENSIONS:
         return "jpeg"
     return sanitized_ext
@@ -184,7 +187,7 @@ def path_to_format(path):
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     """Main index page"""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 
 @app.get("/placeholders/{filename}")
@@ -327,7 +330,7 @@ def calculate_new_path(dirname, base, ext, args):
         if key == "fm":
             continue
         if val is not None:
-            if isinstance(val, six.string_types):
+            if isinstance(val, str):
                 # escape special characters in URLs for overlay / mask arguments
                 val = parse.quote_plus(val)
             stuff.append("{}{}".format(key, val))
@@ -629,12 +632,12 @@ async def get_file_with_params_or_404(bucket, path, param_name, args, force):
     if (width * height) > MAX_PIXELS:
         width = min(args.get('w', width), width)
         height = min(args.get('h', height), height)
-        return await placeholder_it(f"{width}x{height}.jpg", message="TOO BIG")
+        return await placeholder_it(f"{width}x{height}.jpg", bg="fff", message="TOO BIG")
     
     # Check if requested size is too large
     size = args.get('w', width), args.get('h', height)
     if (size[0] * size[1]) > MAX_PIXELS:
-        return await placeholder_it("640x640.jpg", message="TOO BIG")
+        return await placeholder_it("640x640.jpg", bg="fff", message="TOO BIG")
     
     # Process the image
     img = stubbornly_load_image(key.content, key.headers, path)

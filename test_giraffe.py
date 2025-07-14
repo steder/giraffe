@@ -1,28 +1,41 @@
 """
+Tests for FastAPI version of Giraffe
 """
 
 from collections import OrderedDict
+import os
 import unittest
 
 import mock
 import pytest
 import requests
 from requests.exceptions import HTTPError
+from fastapi.testclient import TestClient
+from fastapi import HTTPException
 from wand.color import Color
 from wand.drawing import Drawing
 from wand.exceptions import MissingDelegateError
 from wand.image import Image
-from werkzeug.exceptions import BadRequest
 import giraffe
 
 
-class FlaskTestCase(unittest.TestCase):
+class FastAPITestCase(unittest.TestCase):
     def setUp(self):
-        giraffe.app.config['TESTING'] = True
-        self.app = giraffe.app.test_client()
+        # Mock environment variables
+        self.env_patcher = mock.patch.dict(os.environ, {
+            'AWS_ACCESS_KEY_ID': 'mock_access_key',
+            'AWS_SECRET_ACCESS_KEY': 'mock_secret_key',
+            'ENV': 'testing',
+            'GIRAFFE_SECRET': 'test_secret',
+            'GIRAFFE_CACHE_DIR': 'test_cache'
+        })
+        self.env_patcher.start()
+        
+        # Create test client
+        self.client = TestClient(giraffe.app)
 
     def tearDown(self):
-        pass
+        self.env_patcher.stop()
 
 
 def make_httperror(code):
@@ -82,9 +95,9 @@ class TestBuildPipelineFromParams(unittest.TestCase):
         self.assertEqual(pipeline, [giraffe.ImageOp('rotate', {'degrees': 90})])
 
     def test_bad_rotate(self):
-        self.assertRaises(BadRequest, giraffe.build_pipeline, ({"rot": -1}))
-        self.assertRaises(BadRequest, giraffe.build_pipeline, ({"rot": 360}))
-        self.assertRaises(BadRequest, giraffe.build_pipeline, ({"rot": "stringy"}))
+        self.assertRaises(HTTPException, giraffe.build_pipeline, ({"rot": -1}))
+        self.assertRaises(HTTPException, giraffe.build_pipeline, ({"rot": 360}))
+        self.assertRaises(HTTPException, giraffe.build_pipeline, ({"rot": "stringy"}))
 
         giraffe.build_pipeline({"rot": 1.0})
         giraffe.build_pipeline({"rot": 1.1})
@@ -288,18 +301,18 @@ class TestImageRotate(unittest.TestCase):
                     self.assertNotEqual(col.green, 0.0)
 
 
-class TestIndexRoute(FlaskTestCase):
+class TestIndexRoute(FastAPITestCase):
     """
     Just a placeholder test:
 
     """
 
     def test_index(self):
-        r = self.app.get("/")
+        r = self.client.get("/")
         self.assertEqual(r.status_code, 200)
 
 
-class TestImageRoute(FlaskTestCase):
+class TestImageRoute(FastAPITestCase):
     bucket = "wtf"
 
     def setUp(self):
@@ -310,21 +323,21 @@ class TestImageRoute(FlaskTestCase):
     @mock.patch('giraffe.s3')
     def test_image_doesnt_exist(self, s3):
         s3.get.side_effect = make_httperror(404)
-        r = self.app.get("/{}/redbull.jpg".format(self.bucket))
+        r = self.client.get("/{}/redbull.jpg".format(self.bucket))
         self.assertEqual(r.status_code, 404)
 
     @mock.patch('giraffe.s3')
     def test_image_resize_original_doesnt_exist(self, s3):
         s3.get.side_effect = make_httperror(404)
-        r = self.app.get("/{}/redbull.jpg?w=100&h=100".format(self.bucket))
+        r = self.client.get("/{}/redbull.jpg?w=100&h=100".format(self.bucket))
         self.assertEqual(r.status_code, 404)
 
     def test_image_has_no_extension(self):
-        r = self.app.get("/{}/foo".format(self.bucket))
+        r = self.client.get("/{}/foo".format(self.bucket))
         self.assertEqual(r.status_code, 404)
 
     def test_bucket_only(self):
-        r = self.app.get("/{}".format(self.bucket))
+        r = self.client.get("/{}".format(self.bucket))
         self.assertEqual(r.status_code, 404)
 
     # original image as jpeg:
@@ -335,11 +348,11 @@ class TestImageRoute(FlaskTestCase):
         obj.headers = {'content-type': 'image/jpeg'}
         s3.get.return_value = obj
 
-        r = self.app.get("/{}/redbull.jpg".format(self.bucket))
+        r = self.client.get("/{}/redbull.jpg".format(self.bucket))
         self.assertEqual(r.status_code, 200)
         content_type = r.headers.get("content-type")
         self.assertEqual(content_type, "image/jpeg")
-        self.assertEqual(Image(blob=r.data).format, 'JPEG')
+        self.assertEqual(Image(blob=r.content).format, 'JPEG')
 
     @mock.patch('giraffe.s3')
     def test_jpeg_exists_but_format_as_png(self, s3):
@@ -348,14 +361,14 @@ class TestImageRoute(FlaskTestCase):
         obj.headers = {'content-type': 'image/jpeg'}
 
         s3.get.side_effect = [obj, make_httperror(404)]
-        r = self.app.get("/{}/redbull.jpg?fm=png".format(self.bucket))
+        r = self.client.get("/{}/redbull.jpg?fm=png".format(self.bucket))
         self.assertEqual(r.status_code, 200)
         content_type = r.headers.get("content-type")
         self.assertEqual(content_type, "image/png")
         args, kwargs = s3.upload.call_args
         self.assertEqual(args[0], "giraffe/redbull.png")
         self.assertEqual(kwargs['content_type'], "image/png")
-        self.assertEqual(Image(blob=r.data).format, 'PNG')
+        self.assertEqual(Image(blob=r.content).format, 'PNG')
 
     @mock.patch('giraffe.s3')
     def test_image_exists_but_needs_to_be_resized(self, s3):
@@ -364,9 +377,9 @@ class TestImageRoute(FlaskTestCase):
         # we'll call s3.get twice, the first time we'll get the original file, the second time
         # we'll be calling to check for the specific version of the object.
         s3.get.side_effect = [obj, make_httperror(404)]
-        r = self.app.get("/{}/redbull.jpg?w=100&h=100".format(self.bucket))
+        r = self.client.get("/{}/redbull.jpg?w=100&h=100".format(self.bucket))
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(Image(blob=r.data).size, (100, 100))
+        self.assertEqual(Image(blob=r.content).size, (100, 100))
 
     @mock.patch('giraffe.s3')
     def test_image_exists_but_user_wants_unnecessary_resize(self, s3):
@@ -375,24 +388,26 @@ class TestImageRoute(FlaskTestCase):
         # we'll call s3.get twice, the first time we'll get the original file, the second time
         # we'll be calling to check for the specific version of the object.
         s3.get.side_effect = [obj, make_httperror(404)]
-        r = self.app.get("/{}/redbull.jpg?w=1920&h=1080".format(self.bucket))
+        r = self.client.get("/{}/redbull.jpg?w=1920&h=1080".format(self.bucket))
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(Image(blob=r.data).size, (1920, 1080))
+        self.assertEqual(Image(blob=r.content).size, (1920, 1080))
 
     @mock.patch('giraffe.s3')
     def test_image_exists_and_has_already_been_resized(self, s3):
         obj = mock.Mock()
         obj.content = self.image.make_blob("jpeg")
+        obj.headers = {'content-type': 'image/jpeg'}
         obj2 = mock.Mock()
         with self.image.clone() as img:
             img.resize(100, 100)
             obj2.content = img.make_blob("jpeg")
+        obj2.headers = {'content-type': 'image/jpeg'}
         # we'll call s3.get twice, the first time we'll get the original file, the second time
         # we'll be calling to check for the specific version of the object.
         s3.get.side_effect = [obj, obj2]
-        r = self.app.get("/{}/redbull.jpg?w=100&h=100".format(self.bucket))
+        r = self.client.get("/{}/redbull.jpg?w=100&h=100".format(self.bucket))
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(Image(blob=r.data).size, (100, 100))
+        self.assertEqual(Image(blob=r.content).size, (100, 100))
 
     # original image as png:
     @mock.patch('giraffe.s3')
@@ -401,25 +416,25 @@ class TestImageRoute(FlaskTestCase):
         obj.content = self.image.make_blob("png")
         obj.headers = {'content-type': 'image/png'}
         s3.get.return_value = obj
-        r = self.app.get("/{}/redbull.png".format(self.bucket))
+        r = self.client.get("/{}/redbull.png".format(self.bucket))
         self.assertEqual(r.status_code, 200)
         content_type = r.headers.get("content-type")
         self.assertEqual(content_type, "image/png")
-        self.assertEqual(Image(blob=r.data).format, 'PNG')
+        self.assertEqual(Image(blob=r.content).format, 'PNG')
 
     @mock.patch('giraffe.s3')
     def test_png_exists_but_needs_format_as_jpg(self, s3):
         obj = mock.Mock()
         obj.content = self.image.make_blob("png")
         s3.get.side_effect = [obj, make_httperror(404)]
-        r = self.app.get("/{}/redbull.png?fm=jpg".format(self.bucket))
+        r = self.client.get("/{}/redbull.png?fm=jpg".format(self.bucket))
         self.assertEqual(r.status_code, 200)
         content_type = r.headers.get("content-type")
         self.assertEqual(content_type, "image/jpeg")
         args, kwargs = s3.upload.call_args
         self.assertEqual(args[0], "giraffe/redbull.jpg")
         self.assertEqual(kwargs['content_type'], "image/jpeg")
-        self.assertEqual(Image(blob=r.data).format, 'JPEG')
+        self.assertEqual(Image(blob=r.content).format, 'JPEG')
 
     @mock.patch('giraffe.s3')
     def test_png_exists_but_needs_format_as_jpeg(self, s3):
@@ -427,11 +442,11 @@ class TestImageRoute(FlaskTestCase):
         obj = mock.Mock()
         obj.content = self.image.make_blob("png")
         s3.get.side_effect = [obj, make_httperror(404)]
-        r = self.app.get("/{}/redbull.png?fm=jpeg".format(self.bucket))
+        r = self.client.get("/{}/redbull.png?fm=jpeg".format(self.bucket))
         self.assertEqual(r.status_code, 200)
         content_type = r.headers.get("content-type")
         self.assertEqual(content_type, "image/jpeg")
-        self.assertEqual(Image(blob=r.data).format, 'JPEG')
+        self.assertEqual(Image(blob=r.content).format, 'JPEG')
 
     @mock.patch('giraffe.s3')
     def test_png_exists_but_needs_to_be_resized(self, s3):
@@ -440,9 +455,9 @@ class TestImageRoute(FlaskTestCase):
         # we'll call s3.get twice, the first time we'll get the original file, the second time
         # we'll be calling to check for the specific version of the object.
         s3.get.side_effect = [obj, make_httperror(404)]
-        r = self.app.get("/{}/redbull.png?w=100&h=100".format(self.bucket))
+        r = self.client.get("/{}/redbull.png?w=100&h=100".format(self.bucket))
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(Image(blob=r.data).size, (100, 100))
+        self.assertEqual(Image(blob=r.content).size, (100, 100))
 
     @mock.patch('giraffe.s3')
     def test_png_exists_but_user_wants_unnecessary_resize(self, s3):
@@ -451,24 +466,26 @@ class TestImageRoute(FlaskTestCase):
         # we'll call s3.get twice, the first time we'll get the original file, the second time
         # we'll be calling to check for the specific version of the object.
         s3.get.side_effect = [obj, make_httperror(404)]
-        r = self.app.get("/{}/redbull.png?w=1920&h=1080".format(self.bucket))
+        r = self.client.get("/{}/redbull.png?w=1920&h=1080".format(self.bucket))
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(Image(blob=r.data).size, (1920, 1080))
+        self.assertEqual(Image(blob=r.content).size, (1920, 1080))
 
     @mock.patch('giraffe.s3')
     def test_png_exists_and_has_already_been_resized(self, s3):
         obj = mock.Mock()
         obj.content = self.image.make_blob("png")
+        obj.headers = {'content-type': 'image/png'}
         obj2 = mock.Mock()
         with self.image.clone() as img:
             img.resize(100, 100)
             obj2.content = img.make_blob("png")
+        obj2.headers = {'content-type': 'image/png'}
         # we'll call s3.get twice, the first time we'll get the original file, the second time
         # we'll be calling to check for the specific version of the object.
         s3.get.side_effect = [obj, obj2]
-        r = self.app.get("/{}/redbull.jpg?w=100&h=100".format(self.bucket))
+        r = self.client.get("/{}/redbull.jpg?w=100&h=100".format(self.bucket))
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(Image(blob=r.data).size, (100, 100))
+        self.assertEqual(Image(blob=r.content).size, (100, 100))
 
     # original image as bmp:
     @mock.patch('giraffe.s3')
@@ -477,11 +494,11 @@ class TestImageRoute(FlaskTestCase):
         obj.content = self.image.make_blob("bmp")
         obj.headers = {'content-type': 'image/bmp'}
         s3.get.return_value = obj
-        r = self.app.get("/{}/redbull.bmp".format(self.bucket))
+        r = self.client.get("/{}/redbull.bmp".format(self.bucket))
         self.assertEqual(r.status_code, 200)
         content_type = r.headers.get("content-type")
         self.assertEqual(content_type, "image/bmp")
-        self.assertEqual(Image(blob=r.data).format, 'BMP')
+        self.assertEqual(Image(blob=r.content).format, 'BMP')
 
     @mock.patch('giraffe.s3')
     def test_masquerading_gif_converted_to_jpeg(self, s3):
@@ -496,12 +513,12 @@ class TestImageRoute(FlaskTestCase):
         obj.content = self.image.make_blob("gif")
         obj.headers = {'content-type': 'image/jpeg'}
         s3.get.side_effect = [obj, make_httperror(404)]
-        r = self.app.get("/{}/masquerading_gif.jpg?w=120&h=120".format(self.bucket))
+        r = self.client.get("/{}/masquerading_gif.jpg?w=120&h=120".format(self.bucket))
         self.assertEqual(r.status_code, 200)
         content_type = r.headers.get("content-type")
         self.assertEqual(content_type, "image/jpeg")
-        self.assertEqual(Image(blob=r.data).format, 'JPEG')
-        self.assertEqual(Image(blob=r.data).size, (120, 120))
+        self.assertEqual(Image(blob=r.content).format, 'JPEG')
+        self.assertEqual(Image(blob=r.content).size, (120, 120))
 
     @mock.patch('giraffe.s3')
     def test_giant_image_resize(self, s3):
@@ -510,11 +527,11 @@ class TestImageRoute(FlaskTestCase):
         obj.content = self.image.make_blob("jpg")
         obj.headers = {'content-type': 'image/jpeg'}
         s3.get.side_effect = [obj, make_httperror(404)]
-        r = self.app.get("/{}/giant.jpg?w=120&h=120".format(self.bucket))
+        r = self.client.get("/{}/giant.jpg?w=120&h=120".format(self.bucket))
         self.assertEqual(r.status_code, 200)
         content_type = r.headers.get("content-type")
         self.assertEqual(content_type, "image/jpeg")
-        self.assertEqual(Image(blob=r.data).size, (120, 120))
+        self.assertEqual(Image(blob=r.content).size, (120, 120))
 
     @mock.patch('giraffe.s3')
     def test_ico_masquerading_as_jpg(self, s3):
@@ -523,11 +540,11 @@ class TestImageRoute(FlaskTestCase):
         obj.content = image.make_blob('ico')
         obj.headers = {'content-type': 'image/jpeg'}  # this is what S3 tells us =(
         s3.get.side_effect = [obj, make_httperror(404)]
-        r = self.app.get("/{}/giant.jpg?w=64&h=64".format(self.bucket))
+        r = self.client.get("/{}/giant.jpg?w=64&h=64".format(self.bucket))
         self.assertEqual(r.status_code, 200)
         content_type = r.headers.get("content-type")
         self.assertEqual(content_type, "image/jpeg")
-        self.assertEqual(Image(blob=r.data, format='jpeg').size, (64, 64))
+        self.assertEqual(Image(blob=r.content, format='jpeg').size, (64, 64))
 
     @mock.patch('giraffe.s3')
     def test_ico_masquerading_as_jpg_big(self, s3):
@@ -536,14 +553,14 @@ class TestImageRoute(FlaskTestCase):
         obj.content = image.make_blob('ico')
         obj.headers = {'content-type': 'image/jpeg'}  # this is what S3 tells us =(
         s3.get.side_effect = [obj, make_httperror(404)]
-        r = self.app.get("/{}/giant.jpg?w=400&h=400".format(self.bucket))
+        r = self.client.get("/{}/giant.jpg?w=400&h=400".format(self.bucket))
         self.assertEqual(r.status_code, 200)
         content_type = r.headers.get("content-type")
         self.assertEqual(content_type, "image/jpeg")
-        self.assertEqual(Image(blob=r.data, format='jpeg').size, (400, 400))
+        self.assertEqual(Image(blob=r.content, format='jpeg').size, (400, 400))
 
 
-class TestOverlayRoutes(FlaskTestCase):
+class TestOverlayRoutes(FastAPITestCase):
     bucket = "wtf"
 
     def setUp(self):
@@ -557,13 +574,13 @@ class TestOverlayRoutes(FlaskTestCase):
         obj.content = self.image.make_blob("png")
         # s3 requests for 1. original image, 2. generated image with overlay, 3. overlay
         s3.get.side_effect = [obj, make_httperror(404), obj]
-        r = self.app.get(
+        r = self.client.get(
             "/{b}/art.png?overlay=/{b}/tshirts/overlay.png&bg=451D74".format(
                 b=self.bucket
             )
         )
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(Image(blob=r.data).size, (1920, 1080))
+        self.assertEqual(Image(blob=r.content).size, (1920, 1080))
 
     @mock.patch('giraffe.s3')
     def test_image_overlay_no_bg_color(self, s3):
@@ -573,11 +590,11 @@ class TestOverlayRoutes(FlaskTestCase):
         obj.content = self.image.make_blob("jpg")
         # s3 requests for 1. original image, 2. generated image with overlay, 3. overlay
         s3.get.side_effect = [obj, make_httperror(404), obj]
-        r = self.app.get(
+        r = self.client.get(
             "/{b}/art.jpg?overlay=/{b}/tshirts/overlay.png".format(b=self.bucket)
         )
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(Image(blob=r.data).size, (1920, 1080))
+        self.assertEqual(Image(blob=r.content).size, (1920, 1080))
 
     @mock.patch('giraffe.requests')
     @mock.patch('giraffe.s3')
@@ -587,26 +604,26 @@ class TestOverlayRoutes(FlaskTestCase):
         s3.get.side_effect = [obj, make_httperror(404)]
         requests.get.side_effect = [obj]
 
-        r = self.app.get(
+        r = self.client.get(
             "/{}/art.png?overlay=https://cloudfront.whatever.org/tshirts/overlay.png&bg=451D74".format(
                 self.bucket
             )
         )
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(Image(blob=r.data).size, (1920, 1080))
+        self.assertEqual(Image(blob=r.content).size, (1920, 1080))
 
     @mock.patch('giraffe.s3')
     def test_image_overlay_resize(self, s3):
         obj = mock.Mock()
         obj.content = self.image.make_blob("png")
         s3.get.side_effect = [obj, make_httperror(404), obj]
-        r = self.app.get(
+        r = self.client.get(
             "/{b}/art.png?overlay=/{b}/tshirts/overlay.png&bg=451D74&w=100&h=100".format(
                 b=self.bucket
             )
         )
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(Image(blob=r.data).size, (100, 100))
+        self.assertEqual(Image(blob=r.content).size, (100, 100))
 
 
 class TestSanitizeExtension(unittest.TestCase):
