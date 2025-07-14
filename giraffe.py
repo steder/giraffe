@@ -110,7 +110,7 @@ def sanitize_extension(ext):
     # Remove leading dot and convert to lowercase
     ext = ext.lower().strip(".")
     # Only allow alphanumeric characters and limit to reasonable length
-    if not ext.isalnum() or len(ext) > 10:
+    if not ext.isalnum() or len(ext) > MAX_EXTENSION_LENGTH:
         return ""
     return ext
 
