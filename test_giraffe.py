@@ -607,3 +607,159 @@ class TestOverlayRoutes(FlaskTestCase):
         )
         self.assertEqual(r.status_code, 200)
         self.assertEqual(Image(blob=r.data).size, (100, 100))
+
+
+class TestSanitizeExtension(unittest.TestCase):
+    """Test cases for the sanitize_extension function"""
+
+    def test_valid_extension(self):
+        """Test valid alphanumeric extensions"""
+        self.assertEqual(giraffe.sanitize_extension("jpg"), "jpg")
+        self.assertEqual(giraffe.sanitize_extension("png"), "png")
+        self.assertEqual(giraffe.sanitize_extension("gif"), "gif")
+        self.assertEqual(giraffe.sanitize_extension("webp"), "webp")
+
+    def test_extension_with_leading_dot(self):
+        """Test extensions with leading dots are stripped"""
+        self.assertEqual(giraffe.sanitize_extension(".jpg"), "jpg")
+        self.assertEqual(giraffe.sanitize_extension(".png"), "png")
+        self.assertEqual(giraffe.sanitize_extension(".gif"), "gif")
+
+    def test_uppercase_extension(self):
+        """Test uppercase extensions are converted to lowercase"""
+        self.assertEqual(giraffe.sanitize_extension("JPG"), "jpg")
+        self.assertEqual(giraffe.sanitize_extension("PNG"), "png")
+        self.assertEqual(giraffe.sanitize_extension("GIF"), "gif")
+        self.assertEqual(giraffe.sanitize_extension(".JPEG"), "jpeg")
+
+    def test_mixed_case_extension(self):
+        """Test mixed case extensions are converted to lowercase"""
+        self.assertEqual(giraffe.sanitize_extension("JpG"), "jpg")
+        self.assertEqual(giraffe.sanitize_extension("PnG"), "png")
+        self.assertEqual(giraffe.sanitize_extension("GiF"), "gif")
+
+    def test_empty_extension(self):
+        """Test empty/None extensions return empty string"""
+        self.assertEqual(giraffe.sanitize_extension(""), "")
+        self.assertEqual(giraffe.sanitize_extension(None), "")
+
+    def test_extension_with_special_characters(self):
+        """Test extensions with special characters are rejected"""
+        self.assertEqual(giraffe.sanitize_extension("jpg!"), "")
+        self.assertEqual(giraffe.sanitize_extension("png@"), "")
+        self.assertEqual(giraffe.sanitize_extension("gif#"), "")
+        self.assertEqual(giraffe.sanitize_extension("jpg-old"), "")
+        self.assertEqual(giraffe.sanitize_extension("png_new"), "")
+        self.assertEqual(giraffe.sanitize_extension("gif.bak"), "")
+
+    def test_extension_with_spaces(self):
+        """Test extensions with spaces are rejected"""
+        self.assertEqual(giraffe.sanitize_extension("jpg "), "")
+        self.assertEqual(giraffe.sanitize_extension(" png"), "")
+        self.assertEqual(giraffe.sanitize_extension("gi f"), "")
+
+    def test_extension_too_long(self):
+        """Test extensions longer than MAX_EXTENSION_LENGTH are rejected"""
+        # MAX_EXTENSION_LENGTH is 10, so 11 characters should be rejected
+        long_extension = "a" * (giraffe.MAX_EXTENSION_LENGTH + 1)
+        self.assertEqual(giraffe.sanitize_extension(long_extension), "")
+        
+        # Exactly MAX_EXTENSION_LENGTH should be accepted
+        max_length_extension = "a" * giraffe.MAX_EXTENSION_LENGTH
+        self.assertEqual(giraffe.sanitize_extension(max_length_extension), max_length_extension)
+
+    def test_extension_with_numbers(self):
+        """Test extensions with numbers are allowed"""
+        self.assertEqual(giraffe.sanitize_extension("jpg2"), "jpg2")
+        self.assertEqual(giraffe.sanitize_extension("png32"), "png32")
+        self.assertEqual(giraffe.sanitize_extension("gif89a"), "gif89a")
+
+    def test_numeric_extension(self):
+        """Test purely numeric extensions are allowed"""
+        self.assertEqual(giraffe.sanitize_extension("123"), "123")
+        self.assertEqual(giraffe.sanitize_extension("456"), "456")
+
+    def test_extension_with_dots_stripped(self):
+        """Test multiple dots are handled correctly"""
+        self.assertEqual(giraffe.sanitize_extension("...jpg"), "jpg")
+        self.assertEqual(giraffe.sanitize_extension(".....png"), "png")
+
+    def test_just_dots(self):
+        """Test input with only dots"""
+        self.assertEqual(giraffe.sanitize_extension("."), "")
+        self.assertEqual(giraffe.sanitize_extension("..."), "")
+
+    def test_whitespace_stripping(self):
+        """Test whitespace around dots is handled"""
+        self.assertEqual(giraffe.sanitize_extension(" .jpg "), "")  # Space makes it invalid
+        self.assertEqual(giraffe.sanitize_extension(".jpg "), "")   # Trailing space makes it invalid
+
+
+class TestExtensionToFormatWithSanitization(unittest.TestCase):
+    """Test cases for extension_to_format with the new sanitization"""
+
+    def test_valid_jpeg_extensions(self):
+        """Test valid JPEG extensions are handled correctly"""
+        self.assertEqual(giraffe.extension_to_format("jpg"), "jpg")
+        self.assertEqual(giraffe.extension_to_format("jpeg"), "jpg")
+        self.assertEqual(giraffe.extension_to_format("jpe"), "jpg")
+        self.assertEqual(giraffe.extension_to_format("JPG"), "jpg")
+        self.assertEqual(giraffe.extension_to_format("JPEG"), "jpg")
+
+    def test_invalid_extension_raises_error(self):
+        """Test that invalid extensions raise ValueError"""
+        with self.assertRaises(ValueError):
+            giraffe.extension_to_format("jpg!")
+        with self.assertRaises(ValueError):
+            giraffe.extension_to_format("png@#$")
+        with self.assertRaises(ValueError):
+            giraffe.extension_to_format("a" * 20)  # Too long
+
+    def test_empty_extension_raises_error(self):
+        """Test that empty extensions raise ValueError"""
+        with self.assertRaises(ValueError):
+            giraffe.extension_to_format("")
+        with self.assertRaises(ValueError):
+            giraffe.extension_to_format(None)
+
+    def test_valid_non_jpeg_extensions(self):
+        """Test valid non-JPEG extensions work correctly"""
+        self.assertEqual(giraffe.extension_to_format("png"), "png")
+        self.assertEqual(giraffe.extension_to_format("gif"), "gif")
+        self.assertEqual(giraffe.extension_to_format("webp"), "webp")
+
+
+class TestNormalizeMimetypeWithSanitization(unittest.TestCase):
+    """Test cases for normalize_mimetype with the new sanitization"""
+
+    def test_valid_jpeg_extensions(self):
+        """Test valid JPEG extensions return 'jpeg'"""
+        self.assertEqual(giraffe.normalize_mimetype("jpg"), "jpeg")
+        self.assertEqual(giraffe.normalize_mimetype("jpeg"), "jpeg")
+        self.assertEqual(giraffe.normalize_mimetype("jpe"), "jpeg")
+        self.assertEqual(giraffe.normalize_mimetype("JPG"), "jpeg")
+        self.assertEqual(giraffe.normalize_mimetype("JPEG"), "jpeg")
+
+    def test_invalid_extension_raises_error(self):
+        """Test that invalid extensions raise ValueError"""
+        with self.assertRaises(ValueError):
+            giraffe.normalize_mimetype("jpg!")
+        with self.assertRaises(ValueError):
+            giraffe.normalize_mimetype("png@#$")
+        with self.assertRaises(ValueError):
+            giraffe.normalize_mimetype("a" * 20)  # Too long
+
+    def test_empty_extension_raises_error(self):
+        """Test that empty extensions raise ValueError"""
+        with self.assertRaises(ValueError):
+            giraffe.normalize_mimetype("")
+        with self.assertRaises(ValueError):
+            giraffe.normalize_mimetype(None)
+
+    def test_valid_non_jpeg_extensions(self):
+        """Test valid non-JPEG extensions return the sanitized extension"""
+        self.assertEqual(giraffe.normalize_mimetype("png"), "png")
+        self.assertEqual(giraffe.normalize_mimetype("gif"), "gif")
+        self.assertEqual(giraffe.normalize_mimetype("webp"), "webp")
+        self.assertEqual(giraffe.normalize_mimetype("PNG"), "png")
+        self.assertEqual(giraffe.normalize_mimetype("GIF"), "gif")
