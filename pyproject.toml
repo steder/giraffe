@@ -1,29 +1,30 @@
 [tool.poetry]
 name = "Giraffe"
-version = "0.1.0"
+version = "0.2.0"
 description = "Just imagemagick on ec2"
 authors = ["Mike Steder <steder@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.7"
-flask = "^1.1.2"
-pillow = "^9.3.0"
-gunicorn = "^20.0.4"
-six = "^1.14.0"
+python = "^3.13"
+# Modern ASGI framework and server
+fastapi = "^0.116.1"
+uvicorn = {extras = ["standard"], version = "^0.35.0"}
+pillow = "^11.3.0"
 tinys3 = "^0.1.12"
-wand = "^0.5.9"
-requests = "^2.23.0"
-python-binary-memcached = "^0.29.0"
-gevent = "^1.4.0"
+wand = "^0.6.13"
+requests = "^2.32.4"
+jinja2 = "^3.1.6"
 
-[tool.poetry.dev-dependencies]
-pytest = "^5.4.1"
-fabric = "^2.5.0"
-virtualenv = "^20.0.16"
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.1"
+fabric = "^3.2.2"
 fabtools = "^0.20.0"
 hammock = "^0.2.4"
-mock = "^4.0.2"
+mock = "^5.2.0"
+pytest-asyncio = "^1.0.0"
+httpx = "^0.28.1"
+flake8 = "^7.3.0"
 
 [build-system]
-requires = ["poetry>=0.12"]
-build-backend = "poetry.masonry.api"
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api" 
