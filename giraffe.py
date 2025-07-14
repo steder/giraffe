@@ -96,7 +96,23 @@ connect_s3()
 ImageOp = namedtuple("ImageOp", 'function params')
 
 
-JPEG_REGEX = re.compile(r".*(jpe|jpg|jpeg)$", re.I)
+# Lookup table for JPEG extensions (more secure than regex)
+JPEG_EXTENSIONS = {'jpe', 'jpg', 'jpeg'}
+
+
+def sanitize_extension(ext):
+    """
+    Sanitize extension input to prevent security issues.
+    Only allow alphanumeric characters and limit length.
+    """
+    if not ext:
+        return ""
+    # Remove leading dot and convert to lowercase
+    ext = ext.lower().strip(".")
+    # Only allow alphanumeric characters and limit to reasonable length
+    if not ext.isalnum() or len(ext) > 10:
+        return ""
+    return ext
 
 
 def extension_to_format(ext):
@@ -112,9 +128,10 @@ def extension_to_format(ext):
       JPEG -> jpg
 
     """
-    if JPEG_REGEX.match(ext):
+    sanitized_ext = sanitize_extension(ext)
+    if sanitized_ext in JPEG_EXTENSIONS:
         return "jpg"
-    return ext.lower().strip(".")
+    return sanitized_ext
 
 
 def normalize_mimetype(ext):
@@ -130,9 +147,10 @@ def normalize_mimetype(ext):
       JPEG -> jpeg
 
     """
-    if JPEG_REGEX.match(ext):
+    sanitized_ext = sanitize_extension(ext)
+    if sanitized_ext in JPEG_EXTENSIONS:
         return "jpeg"
-    return ext.lower().strip(".")
+    return sanitized_ext
 
 
 def path_to_format(path):
