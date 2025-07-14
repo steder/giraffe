@@ -129,6 +129,8 @@ def extension_to_format(ext):
 
     """
     sanitized_ext = sanitize_extension(ext)
+    if not sanitized_ext:
+        raise ValueError(f"Invalid extension: '{ext}'")
     if sanitized_ext in JPEG_EXTENSIONS:
         return "jpg"
     return sanitized_ext
