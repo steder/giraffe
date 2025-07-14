@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "Giraffe"
-version = "0.1.0"
+version = "0.2.0"
 description = "Just imagemagick on ec2"
 authors = ["Mike Steder <steder@gmail.com>"]
 

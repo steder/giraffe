@@ -1,4 +1,4 @@
-FROM python:3.8 as builder
+FROM python:3.13-slim as builder
 
 # metadata
 MAINTAINER steder@gmail.com
@@ -9,13 +9,12 @@ ENV ENV=development
 # actual container setup:
 RUN apt-get update \
     && apt-get -y upgrade \
-    && apt-get install -y build-essential \
-    && apt-get install -y imagemagick \
-    git \
-    python \
-    python-dev \
-    python-pip \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        imagemagick \
+        git \
     && pip install poetry \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 FROM builder as giraffe
@@ -28,15 +27,15 @@ EXPOSE 9876
 WORKDIR /opt/app
 
 COPY pyproject.toml poetry.lock /opt/app/
-RUN poetry install --no-root --no-dev
+RUN poetry install --no-root --without=dev
 
 COPY . /opt/app
 
-RUN poetry install --no-dev
+RUN poetry install --without=dev
 
-CMD ["poetry", "gunicorn", "-k", "gevent", "-c", "etc/gunicorn.conf.py", "giraffe:app", "--log-level=DEBUG"]
+CMD ["poetry", "run", "gunicorn", "-k", "gevent", "-c", "etc/gunicorn.conf.py", "giraffe:app", "--log-level=DEBUG"]
 
-from giraffe as dev
+FROM giraffe as dev
 RUN poetry install
 
 CMD ["poetry", "run", "python", "/opt/app/giraffe.py"]
