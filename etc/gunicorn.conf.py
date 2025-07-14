@@ -12,9 +12,6 @@ backlog = 2048
 workers = multiprocessing.cpu_count() * 2 + 1
 worker_class = "uvicorn.workers.UvicornWorker"
 worker_connections = 1000
-max_requests = 1000
-max_requests_jitter = 50
-
 # Restart workers after this many requests, with up to 50 random jitter
 # This helps prevent memory leaks
 max_requests = 1000
