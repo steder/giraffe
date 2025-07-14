@@ -33,7 +33,7 @@ COPY . /opt/app
 
 RUN poetry install --without=dev
 
-CMD ["poetry", "run", "gunicorn", "-k", "gevent", "-c", "etc/gunicorn.conf.py", "giraffe:app", "--log-level=DEBUG"]
+CMD ["poetry", "run", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-c", "etc/gunicorn.conf.py", "giraffe:app", "--log-level=DEBUG"]
 
 FROM giraffe as dev
 RUN poetry install
