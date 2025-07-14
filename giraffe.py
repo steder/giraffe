@@ -26,9 +26,6 @@ import re
 from typing import Optional
 from urllib import parse
 
-# List of allowed domains for proxying
-ALLOWED_DOMAINS = {"example.com", "images.example.com"}
-
 # FastAPI imports
 from fastapi import FastAPI, Request, HTTPException, Query, Path
 from fastapi.responses import Response, HTMLResponse
@@ -269,13 +266,6 @@ async def proxy_that_stuff(
     expected_hmac = generate_hmac(url)
     if expected_hmac != image_hmac:
         raise HTTPException(status_code=404, detail="Oh noes, your key doesn't match!")
-
-    # Validate the URL
-    parsed_url = parse.urlparse(url)
-    if parsed_url.scheme not in ("http", "https"):
-        raise HTTPException(status_code=400, detail="Invalid URL scheme. Only HTTP and HTTPS are allowed.")
-    if parsed_url.hostname not in ALLOWED_DOMAINS:
-        raise HTTPException(status_code=400, detail="URL domain is not allowed.")
 
     try:
         resp = requests.get(url)
