@@ -9,7 +9,7 @@ python = "^3.13"
 # Modern ASGI framework and server
 fastapi = "^0.116.1"
 uvicorn = {extras = ["standard"], version = "^0.35.0"}
-pillow = "^11.3.0"
+pillow = "^12.0.0"
 tinys3 = "^0.1.12"
 wand = "^0.6.13"
 requests = "^2.32.4"
