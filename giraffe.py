@@ -10,10 +10,6 @@ I'd recommend setting them in your ``app.sh`` file.
 
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from collections import namedtuple
 from collections import OrderedDict
 from contextlib import asynccontextmanager
@@ -587,9 +583,10 @@ def image_to_buffer(img, fmt='JPEG', compress=False):
     buff = BytesIO()
     img.format = fmt
     if compress:
-        filename, mode, compresslevel, mtime = '', 'wb', 9, None
-        gz = gzip.GzipFile(filename, mode, compresslevel, buff, mtime)
-        img.save(file=gz)
+        raw = BytesIO()
+        img.save(file=raw)
+        with gzip.GzipFile(filename='', mode='wb', compresslevel=9, fileobj=buff) as gz:
+            gz.write(raw.getvalue())
     else:
         img.save(file=buff)
     return buff

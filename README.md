@@ -8,7 +8,7 @@ More specifically, this started out as something to help out the design team and
 
 Instead, we moved to uploading original images to S3 and letting the resizing, overlays, etc happen dynamically in Giraffe.
 
-![travis ci build status](https://travis-ci.org/steder/giraffe.png)
+![python application build status](https://github.com/steder/giraffe/actions/workflows/python-app.yml/badge.svg)
 
 ## Why call it Giraffe?
 
@@ -96,8 +96,9 @@ Supported params:
 ### Dependencies
 
 At a system level you'll need:
- - `Python` (3.7+, or pypy3)
+ - `Python` 3.13+
  - `ImageMagick` (remember to use `--with-liblqr` if you want to be able to use content-aware resizing)
+ - [`uv`](https://docs.astral.sh/uv/) for managing the Python environment and dependencies
 
 For deployment with Gunicorn you may also want `libev`.
 
@@ -111,14 +112,14 @@ You need to set the following environment variables for giraffe to work properly
 ### Development
 
 ```
-mkvirtualenv giraffe
-pip install -r requirements.txt
+uv sync --all-groups
+uv run python giraffe.py
 ```
 
 #### Testing
 
 ```
-pytest
+uv run pytest
 ```
 
 ### Deployment
