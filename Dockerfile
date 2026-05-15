@@ -1,41 +1,38 @@
-FROM python:3.13-slim as builder
+FROM python:3.13-slim AS builder
 
-# metadata
-MAINTAINER steder@gmail.com
-LABEL version="1.0"
+LABEL org.opencontainers.image.authors="steder@gmail.com"
+LABEL version="2.0"
 
-ENV ENV=development
+ENV ENV=development \
+    UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    UV_PYTHON_DOWNLOADS=never
 
-# actual container setup:
 RUN apt-get update \
     && apt-get -y upgrade \
     && apt-get install -y --no-install-recommends \
         build-essential \
         imagemagick \
         git \
-    && pip install poetry \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-FROM builder as giraffe
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Giraffe listens on 9876 by default
+FROM builder AS giraffe
+
 EXPOSE 9876
-
-# let's get the code!
 
 WORKDIR /opt/app
 
-COPY pyproject.toml poetry.lock /opt/app/
-RUN poetry install --no-root --without=dev
+COPY pyproject.toml uv.lock /opt/app/
+RUN uv sync --frozen --no-dev --no-install-project
 
 COPY . /opt/app
 
-RUN poetry install --without=dev
+CMD ["uv", "run", "--no-dev", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-c", "etc/gunicorn.conf.py", "giraffe:app", "--log-level=DEBUG"]
 
-CMD ["poetry", "run", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-c", "etc/gunicorn.conf.py", "giraffe:app", "--log-level=DEBUG"]
+FROM giraffe AS dev
+RUN uv sync --frozen
 
-FROM giraffe as dev
-RUN poetry install
-
-CMD ["poetry", "run", "python", "/opt/app/giraffe.py"]
+CMD ["uv", "run", "python", "/opt/app/giraffe.py"]

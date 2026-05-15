@@ -5,8 +5,8 @@ Tests for FastAPI version of Giraffe
 from collections import OrderedDict
 import os
 import unittest
+from unittest import mock
 
-import mock
 import pytest
 import requests
 from requests.exceptions import HTTPError

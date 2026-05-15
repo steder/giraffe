@@ -1,4 +1,6 @@
 .tox
 __pycache__
 .coverage
-requirements.pypy.txt
+.venv
+.pytest_cache
+*.egg-info
