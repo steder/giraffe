@@ -10,7 +10,7 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.116.1",
-    "uvicorn[standard]>=0.35.0",
+    "uvicorn[standard]>=0.47.0",
     "pillow>=12.0.0",
     "tinys3>=0.1.12",
     "wand>=0.6.13",
