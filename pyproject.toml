@@ -13,7 +13,7 @@ dependencies = [
     "uvicorn[standard]>=0.35.0",
     "pillow>=12.0.0",
     "tinys3>=0.1.12",
-    "wand>=0.6.13",
+    "wand>=0.7.0",
     "requests>=2.32.4",
     "jinja2>=3.1.6",
 ]
